@@ -108,7 +108,7 @@ public class Profiler
 	public static void start(Thread[] threads, int bufferSize, int sampleDelay)
 	{
 		init();
-		int err = start0(new Thread("Profiler Agent"), threads, bufferSize, sampleDelay); // can fit in discord
+		int err = start0(new Thread("Profiler Agent"), threads, bufferSize, sampleDelay);
 		if (err != 0)
 		{
 			throw new RuntimeException("Profiler error " + err);

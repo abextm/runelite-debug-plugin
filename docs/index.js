@@ -330,7 +330,6 @@ let load = async () => {
 		}
 
 		let memoryUsedLast = 0;
-		let heapCanPop = false;
 
 		let frames = new Uint32Array(0xffff);
 		for (let s = 0; s < header.numSamples; s++) {
@@ -346,10 +345,7 @@ let load = async () => {
 
 					let total = heapUsed; + offheapUsed;
 
-					if (memoryUsedLast == total && false){
-						//malloc.sampleGroups[0].samples.pop();
-						heapCanPop = true;
-					} else {
+					if (memoryUsedLast != total) {
 						malloc.sampleGroups[0].samples.push({
 							time: threads[0].time,
 							number: 1,
