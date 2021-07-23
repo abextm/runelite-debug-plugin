@@ -331,6 +331,9 @@ let load = async () => {
 
 		let memoryUsedLast = 0;
 
+		let memoryMin = {};
+		let memoryMax = {};
+		
 		let frames = new Uint32Array(0xffff);
 		for (let s = 0; s < header.numSamples; s++) {
 			{
@@ -344,6 +347,23 @@ let load = async () => {
 					let offheapCommit = r.u64();
 
 					let total = heapUsed; + offheapUsed;
+
+					for (let [name, value] of Object.entries({heapUsed, heapCommit, offheapUsed, offheapCommit})) {
+						let min = Number.POSITIVE_INFINITY;
+						if (name in memoryMin) {
+							min = memoryMin[name]
+						}
+						let max = 0;
+						if (name in memoryMax) {
+							max = memoryMax[name]
+						}
+						if (value < min) {
+							memoryMin[name] = value;
+						}
+						if (value > max) {
+							memoryMax[name] = value;
+						}
+					}
 
 					if (memoryUsedLast != total) {
 						malloc.sampleGroups[0].samples.push({
@@ -465,6 +485,14 @@ let load = async () => {
 							throw new Error(`unknown type ${type}`);
 					}
 				}
+			}
+
+			function mb(bytes) {
+				return ~~(bytes/(1024*1024))
+			}
+
+			for (let name of Object.keys(memoryMin)) {
+				header.extra[name] = mb(memoryMin[name]) + " - " + mb(memoryMax[name]) + " MiB";
 			}
 		}
 
