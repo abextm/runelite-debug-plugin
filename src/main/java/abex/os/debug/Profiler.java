@@ -145,6 +145,17 @@ public class Profiler
 		return heapinfo;
 	}
 
+	private static native int pushEvent0(int id, int[] data);
+
+	public static void pushEvent(int id, int[] data)
+	{
+		int err = pushEvent0(id, data);
+		if (err != 0)
+		{
+			throw new RuntimeException("Profiler error " + err);
+		}
+	}
+
 	private static native int stop0(byte[] extra);
 
 	private static native int free();

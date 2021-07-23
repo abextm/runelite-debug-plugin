@@ -24,6 +24,7 @@
  */
 package abex.os.debug;
 
+import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
@@ -33,9 +34,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -50,21 +53,26 @@ import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.Timer;
 import javax.swing.filechooser.FileSystemView;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.GameTick;
 import net.runelite.client.RuneLiteProperties;
+import net.runelite.client.eventbus.EventBus;
 
 @Slf4j
 @Singleton
 public class ProfilerPanel extends JPanel
 {
-	private final Client client;
-	private final Gson gson;
-
 	private static final String KEY_SETUP = "setup";
 	private static final String KEY_RUNNING = "running";
 	private static final String KEY_STOPPED = "stopped";
 	private static final String KEY_FAILURE = "failure";
+
+	private final Client client;
+	private final Gson gson;
+	private final EventBus eventBus;
 
 	private final SetupPanel setupPanel = new SetupPanel();
 	private final RunningPanel runningPanel = new RunningPanel();
@@ -74,6 +82,11 @@ public class ProfilerPanel extends JPanel
 	private final CardLayout layout = new CardLayout();
 
 	private final Map<String, Object> extra = new HashMap<>();
+
+	private final List<EventEvent<?>> eventEvents = ImmutableList.of(
+		new EventEvent<>(0x10001, GameStateChanged.class, e -> new int[]{e.getGameState().getState()}),
+		new EventEvent<>(0x10002, GameTick.class)
+	);
 
 	private Thread executorThread;
 	private byte[] data;
@@ -190,13 +203,44 @@ public class ProfilerPanel extends JPanel
 		}
 	}
 
+	@RequiredArgsConstructor
+	private static class EventEvent<T>
+	{
+		private final int id;
+		private final Class<T> clazz;
+		private final Function<T, int[]> consumer;
+		private EventBus.Subscriber subscriber = null;
+
+		EventEvent(int id, Class<T> clazz)
+		{
+			this(id, clazz, null);
+		}
+
+		void register(EventBus eventBus)
+		{
+			assert this.subscriber == null;
+			this.subscriber = eventBus.register(clazz, ev ->
+			{
+				int[] data = consumer == null ? null : consumer.apply(ev);
+				Profiler.pushEvent(id, data);
+			}, 0);
+		}
+
+		void unregister(EventBus eventBus)
+		{
+			eventBus.unregister(this.subscriber);
+			this.subscriber = null;
+		}
+	}
+
 	@Inject
 	public ProfilerPanel(
-		Client client, ScheduledExecutorService executor, Gson gson,
+		Client client, ScheduledExecutorService executor, Gson gson, EventBus eventBus,
 		@Named("runelite.version") String runeliteVersion)
 	{
 		this.gson = gson;
 		this.client = client;
+		this.eventBus = eventBus;
 
 		executor.submit(() ->
 		{
@@ -231,10 +275,10 @@ public class ProfilerPanel extends JPanel
 	{
 		log.info("Starting profiling");
 		Thread[] threads = Stream.of(
-				client.getClientThread(),
-				Thread.currentThread(),
-				executorThread
-			).filter(Objects::nonNull)
+			client.getClientThread(),
+			Thread.currentThread(),
+			executorThread
+		).filter(Objects::nonNull)
 			.toArray(Thread[]::new);
 
 		int delay = (Integer) setupPanel.sampleDelay.getValue();
@@ -253,9 +297,14 @@ public class ProfilerPanel extends JPanel
 			return;
 		}
 
+		for (EventEvent<?> ev : eventEvents)
+		{
+			ev.register(eventBus);
+		}
+
 		show(KEY_RUNNING);
 		final Timer timer = new Timer(100, null);
-		timer.addActionListener(ev ->
+		timer.addActionListener(evAction ->
 		{
 			int status = Profiler.status();
 			switch (status)
@@ -268,6 +317,11 @@ public class ProfilerPanel extends JPanel
 				case 2:
 					show(KEY_STOPPED);
 					timer.stop();
+
+					for (EventEvent<?> ev : eventEvents)
+					{
+						ev.unregister(eventBus);
+					}
 					break;
 			}
 		});

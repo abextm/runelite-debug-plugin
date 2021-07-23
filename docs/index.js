@@ -68,6 +68,11 @@ class Reader {
 	}
 }
 
+const PHASE_INSTANT = 0;
+const PHASE_INTERVAL = 1;
+const PHASE_INTERVAL_START = 2;
+const PHASE_INTERVAL_END = 3
+
 let load = async () => {
 	let file = el.file.files[0];
 	let buf = await file.arrayBuffer()
@@ -418,17 +423,48 @@ let load = async () => {
 						break;
 					}
 					switch (type) {
-						case 1: // GC
+						case 1: { // GC
 							let startTime = readTime();
 							let endTime = readTime();
 							markers.push({
-								data: {},
 								name: thread.getStringID("GC"),
 								startTime,
 								endTime,
+								phase: PHASE_INTERVAL,
 								category: 0,
 							});
 							break;
+						}
+						case 0x10001: {
+							let startTime = readTime();
+							let state = r.u32();
+							state = {
+								10: "Login screen",
+								11: "Login screen authenticator",
+								20: "Logging in",
+								25: "Loading",
+								30: "Logged in",
+								40: "Connection lost",
+								50: "Hopping",
+							}[state] || state;
+							markers.push({
+								name: thread.getStringID("Game State " + state),
+								startTime,
+								phase: PHASE_INSTANT,
+								category: 0,
+							});
+							break;
+						}
+						case 0x10002: {
+							let startTime = readTime();
+							markers.push({
+								name: thread.getStringID("GameTick"),
+								startTime,
+								phase: PHASE_INSTANT,
+								category: 0,
+							});
+							break;
+						}
 						default:
 							throw new Error(`unknown type ${type}`);
 					}

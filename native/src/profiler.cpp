@@ -499,6 +499,27 @@ JNIEXPORT jint JNICALL Java_abex_os_debug_Profiler_free(JNIEnv *env, jclass _kla
 	return 0;
 }
 
+JNIEXPORT jint JNICALL Java_abex_os_debug_Profiler_pushEvent0(JNIEnv *env, jclass _klass, jint id, jintArray data) {
+	auto prof = active_profile;
+	if (prof == nullptr) {
+		return 0;
+	}
+
+	std::lock_guard<std::mutex> guard(prof->event_buffer_mutex);
+	prof->event_buffer.push_back(id);
+	prof->push_event_time(absl::Now());
+	if (data != nullptr) {
+		size_t len = env->GetArrayLength(data);
+		if (len > 0) {
+			size_t offset = prof->event_buffer.size();
+			prof->event_buffer.resize(offset + len);
+			env->GetIntArrayRegion(data, 0, len, reinterpret_cast<jint *>(&prof->event_buffer[offset]));
+		}
+	}
+
+	return 0;
+}
+
 JNIEXPORT jint JNICALL Java_abex_os_debug_Profiler_status(JNIEnv *env, jclass _klass) {
 	auto prof = active_profile;
 	if (prof == nullptr) {
