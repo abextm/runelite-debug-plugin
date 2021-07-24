@@ -95,7 +95,7 @@ public class ProfilerPanel extends JPanel
 	{
 		private final JButton start = new JButton("Start profiling");
 		private final JSpinner sampleDelay = new JSpinner(new SpinnerNumberModel(500, 0, 100_000, 100));
-		private final JSpinner sampleBufferSize = new JSpinner(new SpinnerNumberModel(8 * 1024, 1024, 128 * 1024, 1));
+		private final JSpinner sampleBufferSize = new JSpinner(new SpinnerNumberModel(7 * 1024, 1024, 128 * 1024, 1));
 
 		{
 			start.addActionListener(ev -> startProfiling());
