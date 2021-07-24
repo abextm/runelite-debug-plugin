@@ -166,7 +166,7 @@ public class ProfilerPanel extends JPanel
 				{
 					try
 					{
-						Files.write(fc.getSelectedFile().toPath(), data, StandardOpenOption.CREATE);
+						Files.write(fc.getSelectedFile().toPath(), data);
 						status.setText("Saved");
 					}
 					catch (IOException e)
