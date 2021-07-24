@@ -23,10 +23,16 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 import * as fzstd from 'https://cdn.skypack.dev/pin/fzstd@v0.0.3-CqhayxiadQP2aWUj5XHb/mode=imports,min/optimized/fzstd.js';
+import {NumberArrayKeyedMap} from "./collections.js";
 
 let el = {};
-for (let name of ["file", "container", "info", "openProfiler"]) {
+for (let name of ["file", "container", "info", "openProfiler", "progress"]) {
 	el[name] = document.getElementById(name);
+}
+
+function displayProgress(v) {
+	el.progress.textContent = v;
+	return new Promise(ok => setTimeout(ok, 0));
 }
 
 let decompress = (buf, offset, length, type) => {
@@ -74,6 +80,7 @@ const PHASE_INTERVAL_START = 2;
 const PHASE_INTERVAL_END = 3
 
 let load = async () => {
+	await displayProgress("pre header");
 	let file = el.file.files[0];
 	let buf = await file.arrayBuffer()
 	el.container.classList.add("hidden");
@@ -92,11 +99,14 @@ let load = async () => {
 		}
 
 		let headerLength = Number(dv.getBigUint64(2, le));
+		await displayProgress("decompress header");
 		header = decompress(buf, 10, headerLength);
+		await displayProgress("decompress samples");
 		samples = decompress(buf, 10 + headerLength);
 	}
 
 	{
+		await displayProgress("read header");
 		let h = new Reader(header, le);
 		let numSamples = h.u64();
 		let µs = h.u64();
@@ -135,6 +145,7 @@ let load = async () => {
 
 	let blob;
 	{
+		await displayProgress("read samples");
 		let r = new Reader(samples, le);
 
 		let categories = [];
@@ -249,7 +260,7 @@ let load = async () => {
 
 				this.time = 0;
 
-				this.stacks = new Map();
+				this.stacks = new NumberArrayKeyedMap();
 				this.frames = new Map();
 				this.strings = new Map();
 
@@ -274,18 +285,17 @@ let load = async () => {
 				};
 			}
 
-			getStackID(key, frames, depth) {
-				let id = this.stacks.get(key);
-				if (id === undefined) {
-					let prefix = depth == 0 ? null : this.getStackID(key >> 32n, frames, depth - 1);
-					let methodID = frames[depth];
-					this.stacks.set(key, id = this.stackTable.push({
+			getStackID(frames, depth) {
+				return this.stacks.computeIfAbsent(frames.subarray(0, depth), () => {
+					let prefix = depth <= 1 ? null : this.getStackID(frames, depth - 1);
+					let methodID = frames[depth - 1];
+					let id = this.stackTable.push({
 						frame: this.getFrameID(methodID),
 						prefix,
 						...this.unpackCat(methodID),
-					}));
-				}
-				return id;
+					});
+					return id;
+				});
 			}
 
 			getFrameID(methodID) {
@@ -336,6 +346,9 @@ let load = async () => {
 		
 		let frames = new Uint32Array(0xffff);
 		for (let s = 0; s < header.numSamples; s++) {
+			if ((s % 10000) == 0) {
+				await displayProgress(`sample ${s} / ${header.numSamples}`);
+			}
 			{
 				let deltaTimeNs = r.u32();
 				let deltaTimeMs = deltaTimeNs / 1_000_000;
@@ -383,11 +396,9 @@ let load = async () => {
 					if (frames.length < numFrames) {
 						frames = new Uint32Array(frames.length + 1);
 					}
-					let key = 0n;
 					for (let i = numFrames - 1; i >= 0; i--) {
 						let frame = r.u32();
 						frames[i] = frame;
-						key |= BigInt(frame) << BigInt(32 * i);
 					}
 					let cat = cats.other;
 					if (state & 0x04) {
@@ -419,11 +430,10 @@ let load = async () => {
 					if (cat != 0) {
 						let frame = 0x4000_0000 | cat;
 						frames[numFrames++] = frame;
-						key = (key << 32n) | BigInt(frame);
 					}
 					let location = r.u32();
 
-					let stackID = thread.getStackID(key, frames, numFrames - 1, state);
+					let stackID = thread.getStackID(frames, numFrames);
 					thread.samples.push(stackID, thread.time += deltaTimeMs, .0001);
 				}
 			}
@@ -496,6 +506,8 @@ let load = async () => {
 			}
 		}
 
+		await displayProgress("jsoning");
+
 		let data = {
 			libs: [],
 			meta: {
@@ -540,6 +552,7 @@ let load = async () => {
 		// ideally we could do this but csp & cors prevent this ;-;
 		//el.openProfiler.href = "https://profiler.firefox.com/from-url/" + encodeURIComponent(url);
 	}
+	await displayProgress("done");
 	el.container.classList.remove("hidden");
 }
 
