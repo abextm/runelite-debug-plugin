@@ -39,6 +39,20 @@ import net.runelite.client.util.OSType;
 @Slf4j
 public class Profiler
 {
+	public enum Status
+	{
+		NOT_RUNNING(0),
+		RUNNING(1),
+		FAILED(2),
+		STOPPED(3),
+		;
+
+		Status(int ordinal)
+		{
+			assert this.ordinal() == ordinal;
+		}
+	}
+
 	private static final long[] heapinfo = new long[4];
 	private static final MemoryMXBean memBean = ManagementFactory.getMemoryMXBean();
 
@@ -162,7 +176,12 @@ public class Profiler
 
 	private static native byte[] getBuffer();
 
-	public static native int status();
+	private static native int status0();
+
+	public static Status status()
+	{
+		return Status.values()[status0()];
+	}
 
 	public static native int bufferOffset();
 

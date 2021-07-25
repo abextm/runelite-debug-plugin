@@ -539,7 +539,7 @@ let load = async () => {
 		blob = new Blob([JSON.stringify(data)])
 	}
 
-	for (; el.info.firstChild; el.info.remove(el.info.lastChild));
+	for (; el.info.firstChild; el.info.removeChild(el.info.lastChild));
 	for (let [key, value] of Object.entries(header.extra)) {
 		el.info.appendChild(new Text(`${key}: ${value}`));
 		el.info.appendChild(document.createElement("br"));

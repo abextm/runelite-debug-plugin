@@ -45,6 +45,11 @@
 #define PROF_ERR_COMPRESS PROF_ERROR(5)
 #define PROF_ERR_NO_METHOD PROF_ERROR(6)
 
+#define PROF_STATUS_NOT_RUNNING 0
+#define PROF_STATUS_RUNNING 1
+#define PROF_STATUS_FAILED 2
+#define PROF_STATUS_STOPPED 3
+
 #define PROF_EV_NULL 0
 #define PROF_EV_GC 1
 
@@ -151,6 +156,7 @@ class Profile {
 	jlong num_samples;
 
 	std::atomic<bool> running;
+	std::atomic<uint32_t> status;
 	std::mutex wait_done;
 
 	ZStdCompressor samples;
@@ -178,6 +184,7 @@ class Profile {
 			thread_list(thread_list),
 			num_samples(0),
 			running(true),
+			status(PROF_STATUS_RUNNING),
 			wait_done(),
 			samples(sample_buffer_bytes),
 			header(0x1000),
@@ -335,6 +342,8 @@ class Profile {
 			jvmti->SetEventNotificationMode(JVMTI_DISABLE, JVMTI_EVENT_GARBAGE_COLLECTION_START, nullptr);
 			jvmti->SetEventNotificationMode(JVMTI_DISABLE, JVMTI_EVENT_GARBAGE_COLLECTION_FINISH, nullptr);
 		}
+
+		status.store(this->running.load() ? PROF_STATUS_FAILED : PROF_STATUS_STOPPED);
 	}
 
 	int stop(JNIEnv *env, uint8_t *extra, size_t extra_length) {
@@ -520,12 +529,12 @@ JNIEXPORT jint JNICALL Java_abex_os_debug_Profiler_pushEvent0(JNIEnv *env, jclas
 	return 0;
 }
 
-JNIEXPORT jint JNICALL Java_abex_os_debug_Profiler_status(JNIEnv *env, jclass _klass) {
+JNIEXPORT jint JNICALL Java_abex_os_debug_Profiler_status0(JNIEnv *env, jclass _klass) {
 	auto prof = active_profile;
 	if (prof == nullptr) {
-		return 0;
+		return PROF_STATUS_STOPPED;
 	}
-	return prof->running.load() ? 1 : 2;
+	return prof->status.load();
 }
 
 JNIEXPORT jint JNICALL Java_abex_os_debug_Profiler_bufferOffset(JNIEnv *env, jclass _klass) {

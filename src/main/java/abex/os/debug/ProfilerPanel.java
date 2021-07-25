@@ -306,15 +306,18 @@ public class ProfilerPanel extends JPanel
 		final Timer timer = new Timer(100, null);
 		timer.addActionListener(evAction ->
 		{
-			int status = Profiler.status();
+			Profiler.Status status = Profiler.status();
 			switch (status)
 			{
-				case 1:
+				case RUNNING:
 					runningPanel.buffer.setValue(Profiler.bufferOffset());
 					runningPanel.buffer.setMaximum(Profiler.bufferSize());
 					break;
-				case 0:
-				case 2:
+				case FAILED:
+					stopProfiling();
+					// fallthrough
+				case STOPPED:
+				case NOT_RUNNING:
 					show(KEY_STOPPED);
 					timer.stop();
 
