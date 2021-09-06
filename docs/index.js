@@ -115,7 +115,7 @@ let load = async () => {
 		let numMethods = h.u64();
 
 		let extra = new Uint8Array(h.dv.buffer, h.dv.byteOffset + h.bump(extraLength), extraLength);
-		extra = JSON.parse(Reader.coder.decode(extra));
+		extra = extra.length <= 0 ? {} : JSON.parse(Reader.coder.decode(extra));
 
 		let threads = new Array(numThreads);
 		for (let i = 0; i< numThreads; i++) {
@@ -519,7 +519,7 @@ let load = async () => {
 				oscpu: header.extra["os.name"] + " " + header.extra["os.arch"],
 				abi: header.extra["os.arch"],
 				appBuildID: header.extra.buildID,
-				interval: header.extra["delay"] / 1_000,
+				interval: (header.extra["delay"] / 1_000) || .5,
 				categories,
 				markerSchema: [],
 				sampleUnits: {
