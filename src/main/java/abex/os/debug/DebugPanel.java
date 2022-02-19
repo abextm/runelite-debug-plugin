@@ -36,15 +36,15 @@ import net.runelite.client.ui.PluginPanel;
 public class DebugPanel extends PluginPanel
 {
 	@Inject
-	public DebugPanel(StacktracePanel stacktracePanel)
+	public DebugPanel(ManagementPanel managementPanel)
 	{
 		GroupLayout layout = new GroupLayout(this);
 		setLayout(layout);
 		setMaximumSize(new Dimension(PluginPanel.PANEL_WIDTH, 0));
 
 		layout.setHorizontalGroup(layout.createParallelGroup()
-			.addComponent(stacktracePanel));
+			.addComponent(managementPanel));
 		layout.setVerticalGroup(layout.createSequentialGroup()
-			.addComponent(stacktracePanel));
+			.addComponent(managementPanel));
 	}
 }

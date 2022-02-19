@@ -24,49 +24,68 @@
  */
 package abex.os.debug;
 
-import java.awt.BorderLayout;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
-import java.util.Map;
+import java.awt.event.ActionEvent;
+import java.lang.management.ManagementFactory;
+import javax.management.ObjectName;
 import javax.swing.JButton;
 import javax.swing.JPanel;
 import javax.swing.Timer;
+import net.runelite.client.ui.DynamicGridLayout;
 
-public class StacktracePanel extends JPanel
+public class ManagementPanel extends JPanel
 {
 	private static final String DUMP_THREADS = "Dump threads";
 
-	public StacktracePanel()
+	public ManagementPanel()
 	{
-		JButton b = new JButton(DUMP_THREADS);
-
-		b.addActionListener(l ->
-		{
-			StringBuilder sb = new StringBuilder();
-			for (Map.Entry<Thread, StackTraceElement[]> entry : Thread.getAllStackTraces().entrySet())
-			{
-				Thread t = entry.getKey();
-
-				sb.append("Thread ").append(t.getId()).append("\"").append(t.getName()).append("\": \n");
-				for (StackTraceElement e : entry.getValue())
-				{
-					sb.append(" - ").append(e.toString()).append("\n");
-				}
-			}
-
-			String s = sb.toString();
-			copyToClipboard(s);
-			b.setText("Copied to clipboard");
-			Timer t = new Timer(5*1000, ev -> b.setText(DUMP_THREADS));
-			t.setRepeats(false);
-			t.start();
-		});
-
-		setLayout(new BorderLayout());
-		add(b, BorderLayout.NORTH);
+		setLayout(new DynamicGridLayout(0, 1));
+		add(new ManagementButton("Dump threads", "threadPrint"));
+		add(new ManagementButton("Dump natives", "vmDynlibs"));
 	}
 
-	private void copyToClipboard(String s)
+	static class ManagementButton extends JButton
+	{
+		private final String text;
+		private final String action;
+		private final String[] args;
+
+		public ManagementButton(String text, String action, String ...args)
+		{
+			this.text = text;
+			this.action = action;
+			this.args = args;
+			this.addActionListener(this::click);
+			setText(text);
+		}
+
+		private void click(ActionEvent ev)
+		{
+			String s;
+			try
+			{
+				s = (String) ManagementFactory.getPlatformMBeanServer().invoke(
+					new ObjectName("com.sun.management:type=DiagnosticCommand"),
+					action,
+					new Object[]{args},
+					new String[]{String[].class.getName()}
+				);
+			}
+			catch (Exception e)
+			{
+				s = e.toString();
+			}
+
+			copyToClipboard(s);
+			setText("Copied to clipboard");
+			Timer t = new Timer(5 * 1000, v -> setText(text));
+			t.setRepeats(false);
+			t.start();
+		}
+	}
+
+	private static void copyToClipboard(String s)
 	{
 		Toolkit.getDefaultToolkit()
 			.getSystemClipboard()
