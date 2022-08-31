@@ -25,24 +25,36 @@
 package abex.os.debug;
 
 import java.awt.Toolkit;
+import java.awt.Window;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
+import java.io.File;
 import java.lang.management.ManagementFactory;
 import javax.management.ObjectName;
 import javax.swing.JButton;
+import javax.swing.JFileChooser;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.Timer;
+import javax.swing.border.EmptyBorder;
+import javax.swing.filechooser.FileSystemView;
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.ui.DynamicGridLayout;
 
+@Slf4j
 public class ManagementPanel extends JPanel
 {
-	private static final String DUMP_THREADS = "Dump threads";
-
 	public ManagementPanel()
 	{
 		setLayout(new DynamicGridLayout(0, 1));
 		add(new ManagementButton("Dump threads", "threadPrint"));
 		add(new ManagementButton("Dump natives", "vmDynlibs"));
+
+		JButton heapDump = new JButton("Heap dump");
+		add(heapDump);
+		heapDump.addActionListener(ev -> dumpHeap());
 	}
 
 	static class ManagementButton extends JButton
@@ -90,5 +102,51 @@ public class ManagementPanel extends JPanel
 		Toolkit.getDefaultToolkit()
 			.getSystemClipboard()
 			.setContents(new StringSelection(s), null);
+	}
+
+	private void dumpHeap()
+	{
+		JFileChooser fc = new JFileChooser();
+		fc.setDialogTitle("Save heap dump");
+		fc.setSelectedFile(new File(FileSystemView.getFileSystemView().getDefaultDirectory(), "dump.hprof"));
+		if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION)
+		{
+			return;
+		}
+
+		File fi = fc.getSelectedFile();
+		fi.delete();
+		String filename = fi.getAbsoluteFile().getPath();
+
+		JFrame frame = new JFrame("Heap dump");
+		frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+		JLabel l = new JLabel("Taking heap dump<br>This may take a while...");
+		l.setBorder(new EmptyBorder(15, 15, 15, 15));
+		frame.add(l);
+		frame.setType(Window.Type.POPUP);
+		frame.pack();
+		frame.setVisible(true);
+		frame.toFront();
+
+		Timer t = new Timer(300, v -> {
+			try
+			{
+				ManagementFactory.getPlatformMBeanServer().invoke(
+					new ObjectName("com.sun.management:type=HotSpotDiagnostic"),
+					"dumpHeap",
+					new Object[]{filename, false},
+					new String[]{String.class.getName(), boolean.class.getName()}
+				);
+			}
+			catch (Exception e)
+			{
+				log.warn("unable to capture heap dump", e);
+				JOptionPane.showMessageDialog(this, e.toString(), "Heap dump error", JOptionPane.ERROR_MESSAGE);
+			}
+
+			frame.setVisible(false);
+		});
+		t.setRepeats(false);
+		t.start();
 	}
 }
