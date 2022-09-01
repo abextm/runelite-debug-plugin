@@ -30,6 +30,7 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.io.File;
 import java.lang.management.ManagementFactory;
+import javax.inject.Inject;
 import javax.management.ObjectName;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
@@ -41,13 +42,19 @@ import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileSystemView;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.Client;
 import net.runelite.client.ui.DynamicGridLayout;
 
 @Slf4j
 public class ManagementPanel extends JPanel
 {
-	public ManagementPanel()
+	private final Client client;
+
+	@Inject
+	public ManagementPanel(Client client)
 	{
+		this.client = client;
+
 		setLayout(new DynamicGridLayout(0, 1));
 		add(new ManagementButton("Dump threads", "threadPrint"));
 		add(new ManagementButton("Dump natives", "vmDynlibs"));
@@ -118,6 +125,8 @@ public class ManagementPanel extends JPanel
 		fi.delete();
 		String filename = fi.getAbsoluteFile().getPath();
 
+		client.setPassword("");
+
 		JFrame frame = new JFrame("Heap dump");
 		frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 		JLabel l = new JLabel("Taking heap dump<br>This may take a while...");
@@ -134,7 +143,7 @@ public class ManagementPanel extends JPanel
 				ManagementFactory.getPlatformMBeanServer().invoke(
 					new ObjectName("com.sun.management:type=HotSpotDiagnostic"),
 					"dumpHeap",
-					new Object[]{filename, false},
+					new Object[]{filename, true},
 					new String[]{String.class.getName(), boolean.class.getName()}
 				);
 			}
