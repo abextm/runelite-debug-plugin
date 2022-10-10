@@ -38,11 +38,21 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileSystemView;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.client.config.Config;
+import net.runelite.client.config.ConfigDescriptor;
+import net.runelite.client.config.ConfigItemDescriptor;
+import net.runelite.client.config.ConfigManager;
+import net.runelite.client.config.Keybind;
+import net.runelite.client.config.ModifierlessKeybind;
+import net.runelite.client.plugins.Plugin;
+import net.runelite.client.plugins.PluginManager;
 import net.runelite.client.ui.DynamicGridLayout;
 
 @Slf4j
@@ -50,10 +60,16 @@ public class ManagementPanel extends JPanel
 {
 	private final Client client;
 
+	private final PluginManager pluginManager;
+
 	@Inject
-	public ManagementPanel(Client client)
+	private ConfigManager configManager;
+
+	@Inject
+	public ManagementPanel(Client client, PluginManager pluginManager)
 	{
 		this.client = client;
+		this.pluginManager = pluginManager;
 
 		setLayout(new DynamicGridLayout(0, 1));
 		add(new ManagementButton("Dump threads", "threadPrint"));
@@ -62,6 +78,41 @@ public class ManagementPanel extends JPanel
 		JButton heapDump = new JButton("Heap dump");
 		add(heapDump);
 		heapDump.addActionListener(ev -> dumpHeap());
+
+		JButton displayKeybinds = new JButton("Display Keybinds");
+		add(displayKeybinds);
+		displayKeybinds.addActionListener(ev -> showKeybindsPanel());
+	}
+
+	private void showKeybindsPanel()
+	{
+		JTextArea textArea = new JTextArea(showKeybinds(),30,50);
+		JOptionPane.showMessageDialog(null,new JScrollPane(textArea), "Keybinds", JOptionPane.INFORMATION_MESSAGE);
+	}
+
+	private String showKeybinds()
+	{
+		String retVal = "";
+		for (Plugin plugin : pluginManager.getPlugins())
+		{
+			Config config = pluginManager.getPluginConfigProxy(plugin);
+			ConfigDescriptor cd = config == null ? null : configManager.getConfigDescriptor(config);
+			if (cd != null)
+			{
+				for (ConfigItemDescriptor cid : cd.getItems())
+				{
+					if (cid.getType() == Keybind.class || cid.getType() == ModifierlessKeybind.class)
+					{
+						retVal = retVal.concat(plugin.getName() + " " + cid.name() + ": " +
+								configManager.getConfiguration(cd.getGroup().value(),
+																 cid.getItem().keyName(),
+																 (Class<? extends Keybind>) cid.getType()) +
+								"\n");
+					}
+				}
+			}
+		}
+		return retVal;
 	}
 
 	static class ManagementButton extends JButton
