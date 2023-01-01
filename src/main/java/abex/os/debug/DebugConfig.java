@@ -27,8 +27,9 @@ package abex.os.debug;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 
-@ConfigGroup("debug")
+@ConfigGroup(DebugConfig.GROUP)
 public interface DebugConfig extends Config
 {
-
+	String GROUP = "debug";
+	String CREATE_CORE_DUMP = "createCoreDump";
 }

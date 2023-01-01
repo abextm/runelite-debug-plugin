@@ -36,7 +36,7 @@ import net.runelite.client.ui.PluginPanel;
 public class DebugPanel extends PluginPanel
 {
 	@Inject
-	public DebugPanel(ManagementPanel managementPanel, KeybindsPanel keybindsPanel)
+	public DebugPanel(ManagementPanel managementPanel, KeybindsPanel keybindsPanel, CoreDumpPanel coreDumpPanel)
 	{
 		GroupLayout layout = new GroupLayout(this);
 		setLayout(layout);
@@ -44,9 +44,11 @@ public class DebugPanel extends PluginPanel
 
 		layout.setHorizontalGroup(layout.createParallelGroup()
 			.addComponent(managementPanel)
-			.addComponent(keybindsPanel));
+			.addComponent(keybindsPanel)
+			.addComponent(coreDumpPanel));
 		layout.setVerticalGroup(layout.createSequentialGroup()
 			.addComponent(managementPanel)
-			.addComponent(keybindsPanel));
+			.addComponent(keybindsPanel)
+			.addComponent(coreDumpPanel));
 	}
 }

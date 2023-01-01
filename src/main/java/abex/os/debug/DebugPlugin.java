@@ -30,6 +30,8 @@ import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
@@ -54,29 +56,39 @@ public class DebugPlugin extends Plugin
 	@Inject
 	private Provider<DebugPanel> panelProvider;
 
-	private DebugPanel panel;
+	@Inject
+	private Provider<CoreDumpPanel> coreDumpPanel;
 
 	NavigationButton panelButton;
 
 	@Override
 	protected void startUp() throws Exception
 	{
-		panel = panelProvider.get();
-
 		panelButton = NavigationButton.builder()
-			.panel(panel)
+			.panel(panelProvider.get())
 			.icon(ImageUtil.loadImageResource(DebugPlugin.class, "panel.png"))
 			.tooltip("Debug")
 			.priority(9999)
 			.build();
 
 		clientToolbar.addNavigation(panelButton);
+
+		coreDumpPanel.get().patch();
 	}
 
 	@Override
 	protected void shutDown() throws Exception
 	{
 		clientToolbar.removeNavigation(panelButton);
+	}
+
+	@Subscribe
+	private void onConfigChanged(ConfigChanged ev)
+	{
+		if (DebugConfig.GROUP.equals(ev.getGroup()))
+		{
+			coreDumpPanel.get().patch();
+		}
 	}
 
 	@Provides
