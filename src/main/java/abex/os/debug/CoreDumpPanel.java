@@ -217,18 +217,8 @@ public class CoreDumpPanel extends JPanel
 		}
 
 		JsonArray vmArgs = config.get("vmArgs").getAsJsonArray();
-		JsonPrimitive coredumpArg = new JsonPrimitive(COREDUMP_ARG);
-		if (enabled)
-		{
-			if (!vmArgs.contains(coredumpArg))
-			{
-				vmArgs.add(coredumpArg);
-			}
-		}
-		else
-		{
-			vmArgs.remove(new JsonPrimitive(COREDUMP_ARG));
-		}
+		setHasArg(vmArgs, "-Drunelite.launcher.reflect=true", enabled);
+		setHasArg(vmArgs, COREDUMP_ARG, enabled);
 
 		try
 		{
@@ -270,6 +260,22 @@ public class CoreDumpPanel extends JPanel
 		catch (IOException e)
 		{
 			log.warn("error updating packr vm args!", e);
+		}
+	}
+
+	private void setHasArg(JsonArray args, String argStr, boolean enabled)
+	{
+		JsonPrimitive arg = new JsonPrimitive(argStr);
+		if (enabled)
+		{
+			if (!args.contains(arg))
+			{
+				args.add(arg);
+			}
+		}
+		else
+		{
+			args.remove(arg);
 		}
 	}
 
