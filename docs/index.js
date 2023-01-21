@@ -282,6 +282,7 @@ let load = async () => {
 					markers: this.markers,
 					resourceTable: this.resourceTable,
 					stringArray: this.stringArray,
+					nativeSymbols: [],
 				};
 			}
 
@@ -525,7 +526,7 @@ let load = async () => {
 				sampleUnits: {
 					time: "ms",
 					eventDelay: "ms",
-					//threadCPUDelta: "ns",
+					threadCPUDelta: "ns",
 				},
 			},
 			pages: [],
