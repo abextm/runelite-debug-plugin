@@ -1,25 +1,31 @@
 on:
   push:
+    branches:
+      - master
   workflow_dispatch:
-    inputs:
-      RELEASE:
-        description: "yes == release"
-        required: false
 jobs:
   linux-amd64:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
+    container:
+      image: amd64/centos:7.9.2009
     steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: recursive
+    - name: install dependencies
+      run: |
+        set -e -x
+        curl -Lo cmake-3.23.2-linux-x86_64.tar.gz 'https://github.com/Kitware/CMake/releases/download/v3.23.2/cmake-3.23.2-linux-x86_64.tar.gz'
+        echo "aaced6f745b86ce853661a595bdac6c5314a60f8181b6912a0a4920acfa32708  cmake-3.23.2-linux-x86_64.tar.gz" | sha256sum -c
+        tar -xf cmake-3.23.2-linux-x86_64.tar.gz
+        mv cmake-3.23.2-linux-x86_64 cmake
+        yum -y install git java-11-openjdk-devel "@Development Tools"
     - name: build linux-amd64
       run: |
         set -e -x
+        git clone --recursive https://github.com/abextm/runelite-debug-plugin.git
         mkdir -p build/linux-amd64
         cd build/linux-amd64
-        cmake -S ../../native -B .
+        ../../cmake/bin/cmake -S ../../runelite-debug-plugin/native -B .
         make Profiler -j2
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: linux-amd64
         path: build/linux-amd64/libProfiler.so
@@ -28,7 +34,7 @@ jobs:
   macos-universal:
     runs-on: macos-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: recursive
     - name: build macos-universal
@@ -38,16 +44,16 @@ jobs:
         cd build/macos-universal
         cmake -S ../../native -B .
         make Profiler -j2
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: macos-universal
         path: build/macos-universal/libProfiler.dylib
         retention-days: 1
         if-no-files-found: error
   windows-amd64:
-    runs-on: windows-2019
+    runs-on: windows-2022
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: recursive
     - uses: ilammy/msvc-dev-cmd@v1
@@ -62,16 +68,16 @@ jobs:
         if (!$?) { exit 1 }
         ninja Profiler
         if (!$?) { exit 1 }
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: windows-amd64
         path: build/windows-amd64/profiler.dll
         retention-days: 1
         if-no-files-found: error
   windows-x86:
-    runs-on: windows-2019
+    runs-on: windows-2022
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: recursive
     - uses: ilammy/msvc-dev-cmd@v1
@@ -86,24 +92,24 @@ jobs:
         if (!$?) { exit 1 }
         ninja Profiler
         if (!$?) { exit 1 }
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: windows-x86
         path: build/windows-x86/profiler.dll
         retention-days: 1
         if-no-files-found: error
   java:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     needs: [linux-amd64, macos-universal, windows-amd64, windows-x86]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
-    - uses: actions/setup-java@v2
+    - uses: actions/setup-java@v3
       with:
         distribution: adopt
         java-version: 11
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         path: src/main/resources/natives
     - name: bump
@@ -113,31 +119,16 @@ jobs:
       run: |
         set -e -x
         touch src/main/resources/natives/cibuilt
-        ./gradlew test shadowJar
-    - uses: actions/upload-artifact@v2
-      with:
-        name: client
-        path: build/shadowjar/
-        retention-days: 3
-        if-no-files-found: error
+        ./gradlew test
     - name: commit
       run: |
         set -e -x
+        COMMIT="$(git rev-parse HEAD)"
+        git checkout -b binaries-$COMMIT
         git config user.name "Release Script"
         git config user.email abex@runelite.net
         git add src/main/resources/natives/**
         git add version
-        git commit -m "Version $(cat version)"
+        git commit -m "Binaries for $COMMIT"
         git show HEAD
-        git tag "v$(cat version)"
-    - name: push
-      if: ${{ github.event.inputs.RELEASE == 'yes' }}
-      run: |
-        set -e -x
-        VER="$(cat version)"
-        git reset --hard HEAD^
-        perl -i -p -e 's/\.([0-9]+)-SNAPSHOT$/"." . ($1+1) . "-SNAPSHOT"/e' version
-        git add version
-        git commit -m "Release $VER"
-        git push origin "v$VER"
-        git push
+        git push origin binaries-$COMMIT
