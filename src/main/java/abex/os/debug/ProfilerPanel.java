@@ -32,7 +32,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -274,11 +273,20 @@ public class ProfilerPanel extends JPanel
 	public void startProfiling()
 	{
 		log.info("Starting profiling");
-		Thread[] threads = Stream.of(
-			client.getClientThread(),
-			Thread.currentThread(),
-			executorThread
-		).filter(Objects::nonNull)
+		Thread[] threads = Stream.concat(
+			Stream.of(
+				client.getClientThread(),
+				Thread.currentThread(),
+				executorThread
+			),
+			Thread.getAllStackTraces().entrySet().stream()
+				.filter(e -> {
+					String name = e.getKey().getName();
+					return "AWT-Windows".equals(name)
+						|| "AWT-XAWT".equals(name);
+				})
+				.map(e -> e.getKey())
+			).filter(Objects::nonNull)
 			.toArray(Thread[]::new);
 
 		int delay = (Integer) setupPanel.sampleDelay.getValue();

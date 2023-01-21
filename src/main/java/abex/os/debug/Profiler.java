@@ -146,6 +146,7 @@ public class Profiler
 		return buf;
 	}
 
+	// called by native code
 	private static long[] heapinfo()
 	{
 		MemoryUsage heap = memBean.getHeapMemoryUsage();
