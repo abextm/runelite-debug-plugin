@@ -1,0 +1,19 @@
+BasedOnStyle: Google
+TabWidth: 2
+IndentWidth: 2
+ContinuationIndentWidth: 2
+ConstructorInitializerIndentWidth: 2
+UseTab: Always
+
+ColumnLimit: 0 # clang-format is incapable of not aligning some things, so we have this off so it won't try
+
+AlignAfterOpenBracket: DontAlign
+AlignEscapedNewlines: DontAlign
+AlignOperands: DontAlign
+AlignTrailingComments: false
+BreakBeforeBinaryOperators: NonAssignment
+
+DerivePointerAlignment: false
+PointerAlignment: Right
+
+DeriveLineEnding: false

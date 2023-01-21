@@ -1,0 +1,6 @@
+[submodule "native/abseil-cpp"]
+	path = native/abseil-cpp
+	url = https://github.com/abseil/abseil-cpp.git
+[submodule "native/zstd"]
+	path = native/zstd
+	url = https://github.com/facebook/zstd.git
