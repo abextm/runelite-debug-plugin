@@ -24,12 +24,13 @@
  */
 package abex.os.debug;
 
-import java.awt.Toolkit;
+import com.sun.management.UnixOperatingSystemMXBean;
 import java.awt.Window;
-import java.awt.datatransfer.StringSelection;
-import java.awt.event.ActionEvent;
 import java.io.File;
 import java.lang.management.ManagementFactory;
+import java.lang.management.OperatingSystemMXBean;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import javax.inject.Inject;
 import javax.management.ObjectName;
 import javax.swing.JButton;
@@ -41,6 +42,7 @@ import javax.swing.JPanel;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileSystemView;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.client.ui.DynamicGridLayout;
@@ -56,59 +58,25 @@ public class ManagementPanel extends JPanel
 		this.client = client;
 
 		setLayout(new DynamicGridLayout(0, 1));
-		add(new ManagementButton("Dump threads", "threadPrint"));
-		add(new ManagementButton("Dump natives", "vmDynlibs"));
+		add(new FeedbackButton.CopyToClipboardButton("Dump threads", () -> invokeDiagnosticCommand("threadPrint")));
+		add(new FeedbackButton.CopyToClipboardButton("Dump natives", () -> invokeDiagnosticCommand("vmDynlibs")));
 
 		JButton heapDump = new JButton("Heap dump");
 		add(heapDump);
 		heapDump.addActionListener(ev -> dumpHeap());
+
+		add(new FeedbackButton.CopyToClipboardButton("OS stats", this::dumpOSStats));
 	}
 
-	static class ManagementButton extends JButton
+	@SneakyThrows
+	private static String invokeDiagnosticCommand(String action, String... args)
 	{
-		private final String text;
-		private final String action;
-		private final String[] args;
-
-		public ManagementButton(String text, String action, String ...args)
-		{
-			this.text = text;
-			this.action = action;
-			this.args = args;
-			this.addActionListener(this::click);
-			setText(text);
-		}
-
-		private void click(ActionEvent ev)
-		{
-			String s;
-			try
-			{
-				s = (String) ManagementFactory.getPlatformMBeanServer().invoke(
-					new ObjectName("com.sun.management:type=DiagnosticCommand"),
-					action,
-					new Object[]{args},
-					new String[]{String[].class.getName()}
-				);
-			}
-			catch (Exception e)
-			{
-				s = e.toString();
-			}
-
-			copyToClipboard(s);
-			setText("Copied to clipboard");
-			Timer t = new Timer(5 * 1000, v -> setText(text));
-			t.setRepeats(false);
-			t.start();
-		}
-	}
-
-	private static void copyToClipboard(String s)
-	{
-		Toolkit.getDefaultToolkit()
-			.getSystemClipboard()
-			.setContents(new StringSelection(s), null);
+		return (String) ManagementFactory.getPlatformMBeanServer().invoke(
+			new ObjectName("com.sun.management:type=DiagnosticCommand"),
+			action,
+			new Object[]{args},
+			new String[]{String[].class.getName()}
+		);
 	}
 
 	private void dumpHeap()
@@ -137,7 +105,8 @@ public class ManagementPanel extends JPanel
 		frame.setVisible(true);
 		frame.toFront();
 
-		Timer t = new Timer(300, v -> {
+		Timer t = new Timer(300, v ->
+		{
 			try
 			{
 				ManagementFactory.getPlatformMBeanServer().invoke(
@@ -157,5 +126,41 @@ public class ManagementPanel extends JPanel
 		});
 		t.setRepeats(false);
 		t.start();
+	}
+
+	private String dumpOSStats()
+	{
+		OperatingSystemMXBean bean = ManagementFactory.getOperatingSystemMXBean();
+		StringBuilder sb = new StringBuilder();
+		Class<?> clazz = OperatingSystemMXBean.class;
+		for (Class<?> test : new Class[]{
+			UnixOperatingSystemMXBean.class,
+			com.sun.management.OperatingSystemMXBean.class
+		})
+		{
+			if (test.isAssignableFrom(bean.getClass()))
+			{
+				clazz = test;
+				break;
+			}
+		}
+		for (Method m : clazz.getMethods())
+		{
+			if (m.getName().startsWith("get") && Modifier.isPublic(m.getModifiers()) && !Modifier.isStatic(m.getModifiers()) && m.getParameterCount() == 0)
+			{
+				Object v;
+				try
+				{
+					v = m.invoke(bean);
+				}
+				catch (Exception e)
+				{
+					v = e;
+				}
+
+				sb.append(m.getName()).append(": ").append(v).append('\n');
+			}
+		}
+		return sb.toString();
 	}
 }
