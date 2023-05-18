@@ -34,6 +34,7 @@ import java.lang.reflect.Modifier;
 import javax.inject.Inject;
 import javax.management.ObjectName;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -45,6 +46,7 @@ import javax.swing.filechooser.FileSystemView;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.client.RuneLite;
 import net.runelite.client.ui.DynamicGridLayout;
 
 @Slf4j
@@ -66,6 +68,10 @@ public class ManagementPanel extends JPanel
 		heapDump.addActionListener(ev -> dumpHeap());
 
 		add(new FeedbackButton.CopyToClipboardButton("OS stats", this::dumpOSStats));
+
+		JCheckBox logGC = new JCheckBox("Log GC details");
+		add(logGC);
+		logGC.addItemListener(ev -> setXLog("gc", "gc=" + (logGC.isSelected() ? "debug" : "off")));
 	}
 
 	@SneakyThrows
@@ -77,6 +83,17 @@ public class ManagementPanel extends JPanel
 			new Object[]{args},
 			new String[]{String[].class.getName()}
 		);
+	}
+
+	private static void setXLog(String name, String what)
+	{
+		File f = new File(RuneLite.LOGS_DIR, name + ".log");
+		String out = invokeDiagnosticCommand("vmLog",
+			"output=file=" + f.getAbsolutePath() + "",
+			"what=" + what,
+			"decorators=uptime"
+		);
+		log.info("xlog: {}", out);
 	}
 
 	private void dumpHeap()
