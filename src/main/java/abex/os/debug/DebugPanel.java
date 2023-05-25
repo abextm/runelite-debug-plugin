@@ -40,6 +40,7 @@ public class DebugPanel extends PluginPanel
 		ManagementPanel managementPanel,
 		KeybindsPanel keybindsPanel,
 		CoreDumpPanel coreDumpPanel,
+		VirtualMemoryPanel virtualMemoryPanel,
 		ProfilerPanel profilerPanel)
 	{
 		GroupLayout layout = new GroupLayout(this);
@@ -50,11 +51,13 @@ public class DebugPanel extends PluginPanel
 			.addComponent(managementPanel)
 			.addComponent(keybindsPanel)
 			.addComponent(coreDumpPanel)
+			.addComponent(virtualMemoryPanel)
 			.addComponent(profilerPanel));
 		layout.setVerticalGroup(layout.createSequentialGroup()
 			.addComponent(managementPanel)
 			.addComponent(keybindsPanel)
 			.addComponent(coreDumpPanel)
+			.addComponent(virtualMemoryPanel)
 			.addComponent(profilerPanel));
 	}
 }

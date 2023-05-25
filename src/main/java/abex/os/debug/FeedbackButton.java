@@ -29,7 +29,9 @@ import java.awt.datatransfer.StringSelection;
 import java.util.function.Supplier;
 import javax.swing.JButton;
 import javax.swing.Timer;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public abstract class FeedbackButton extends JButton
 {
 	private String initialText;
@@ -76,6 +78,7 @@ public abstract class FeedbackButton extends JButton
 			}
 			catch (Exception e)
 			{
+				log.info("", e);
 				s = e.toString();
 			}
 
