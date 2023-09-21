@@ -26,28 +26,13 @@ package abex.os.debug;
 
 import com.google.common.io.PatternFilenameFilter;
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonIOException;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
-import com.google.gson.JsonSyntaxException;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.lang.management.ManagementFactory;
 import java.lang.reflect.Field;
-import java.nio.channels.FileChannel;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Locale;
-import java.util.Optional;
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.inject.Singleton;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -55,7 +40,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.client.RuneLiteProperties;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.DynamicGridLayout;
 import net.runelite.client.util.OSType;
@@ -64,27 +48,20 @@ import net.runelite.client.util.OSType;
 @Singleton
 public class CoreDumpPanel extends JPanel
 {
-	private static final String COREDUMP_ARG = "-XX:+CreateCoredumpOnCrash";
-
-	private final boolean enabled;
 	private final JLabel statusLabel = new JLabel();
 	private final JCheckBox checkBox = new JCheckBox("Core Dumps");
-	private final Gson gson;
-	private boolean coredumpsCurrentlyEnabled;
-	private ConfigManager configManager;
-	private File packrConfigFile = new File("config.json").getAbsoluteFile();
+	private final ConfigManager configManager;
+	private VMConfigPatch patch;
 
 	@Inject
-	public CoreDumpPanel(ConfigManager configManager, Gson gson)
+	public CoreDumpPanel(ConfigManager configManager, Gson gson, @Named("developerMode") boolean developerMode)
 	{
 		this.configManager = configManager;
-		this.gson = gson.newBuilder()
-			.setPrettyPrinting()
-			.create();
 
-		/*{
+		if (developerMode)
+		{
 			JButton crash = new JButton("crash the client");
-			crash.addActionListener(e_v ->
+			crash.addActionListener(_ev ->
 			{
 				try
 				{
@@ -100,67 +77,28 @@ public class CoreDumpPanel extends JPanel
 				}
 			});
 			add(crash);
-		}// */
+		}
 
 		if (OSType.getOSType() != OSType.Windows)
 		{
-			this.enabled = false;
 			return;
 		}
 
-		coredumpsCurrentlyEnabled = ManagementFactory.getRuntimeMXBean()
-			.getInputArguments()
-			.stream()
-			.anyMatch(COREDUMP_ARG::equals);
+		this.patch = new VMConfigPatch(gson, "Coredumps", "-XX:+CreateCoredumpOnCrash");
+		statusLabel.setText(patch.status());
 
 		setLayout(new DynamicGridLayout(0, 1));
 
 		add(checkBox);
 		add(statusLabel);
 
-		this.enabled = checkEnabled();
-		if (coredumpsCurrentlyEnabled)
-		{
-			statusLabel.setText("Coredumps enabled");
-		}
-
 		checkExistingDumps();
-		checkBox.setEnabled(enabled);
+		checkBox.setEnabled(VMConfigPatch.isSupported());
 		checkBox.setSelected(configManager.getConfiguration(DebugConfig.GROUP, DebugConfig.CREATE_CORE_DUMP, boolean.class) == Boolean.TRUE);
 		checkBox.addChangeListener(e ->
 		{
 			configManager.setConfiguration(DebugConfig.GROUP, DebugConfig.CREATE_CORE_DUMP, checkBox.isSelected());
 		});
-	}
-
-	private boolean checkEnabled()
-	{
-		String launcherVer = RuneLiteProperties.getLauncherVersion();
-		if (launcherVer == null)
-		{
-			statusLabel.setText("Not using launcher");
-			return false;
-		}
-		if (!launcherVer.startsWith("2"))
-		{
-			statusLabel.setText("Launcher out of date");
-			return false;
-		}
-
-		if (!isExeLauncher())
-		{
-			statusLabel.setText("Not using EXE launcher");
-			return false;
-		}
-
-		if (!packrConfigFile.exists())
-		{
-			statusLabel.setText("Cannot find config");
-			return false;
-		}
-
-		statusLabel.setText("Coredumps disabled");
-		return true;
 	}
 
 	private void checkExistingDumps()
@@ -198,101 +136,14 @@ public class CoreDumpPanel extends JPanel
 
 	public void patch()
 	{
-		if (!enabled)
+		if (OSType.getOSType() != OSType.Windows || !VMConfigPatch.isSupported())
 		{
 			return;
 		}
 
 		boolean enabled = configManager.getConfiguration(DebugConfig.GROUP, DebugConfig.CREATE_CORE_DUMP, boolean.class) == Boolean.TRUE;
-
-		JsonObject config;
-		try (FileInputStream fin = new FileInputStream(packrConfigFile))
-		{
-			config = gson.fromJson(new InputStreamReader(fin), JsonObject.class);
-		}
-		catch (IOException | JsonIOException | JsonSyntaxException e)
-		{
-			log.warn("error deserializing packr vm args!", e);
-			return;
-		}
-
-		JsonArray vmArgs = config.get("vmArgs").getAsJsonArray();
-		setHasArg(vmArgs, "-Drunelite.launcher.reflect=true", enabled);
-		setHasArg(vmArgs, COREDUMP_ARG, enabled);
-
-		try
-		{
-			File tmpFile = File.createTempFile("runelite", null);
-
-			try (FileOutputStream fout = new FileOutputStream(tmpFile);
-				FileChannel channel = fout.getChannel();
-				PrintWriter writer = new PrintWriter(fout))
-			{
-				channel.lock();
-				writer.write(gson.toJson(config));
-				channel.force(true);
-				// FileChannel.close() frees the lock
-			}
-
-			try
-			{
-				Files.move(tmpFile.toPath(), packrConfigFile.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-			}
-			catch (AtomicMoveNotSupportedException ex)
-			{
-				log.debug("atomic move not supported", ex);
-				Files.move(tmpFile.toPath(), packrConfigFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-			}
-
-			log.info("patched packr vm args");
-
-			SwingUtilities.invokeLater(() ->
-			{
-				String status = "Coredumps " + (coredumpsCurrentlyEnabled ? "enabled" : "disabled");
-				if (coredumpsCurrentlyEnabled != enabled)
-				{
-					status += " (Restart to " + (enabled ? "enable" : "disable") + ")";
-				}
-				statusLabel.setText(status);
-
-			});
-		}
-		catch (IOException e)
-		{
-			log.warn("error updating packr vm args!", e);
-		}
+		patch.set(enabled);
+		SwingUtilities.invokeLater(() -> statusLabel.setText(patch.status()));
 	}
 
-	private void setHasArg(JsonArray args, String argStr, boolean enabled)
-	{
-		JsonPrimitive arg = new JsonPrimitive(argStr);
-		if (enabled)
-		{
-			if (!args.contains(arg))
-			{
-				args.add(arg);
-			}
-		}
-		else
-		{
-			args.remove(arg);
-		}
-	}
-
-	private boolean isExeLauncher()
-	{
-		try
-		{
-			Class<?> ph = Class.forName("java.lang.ProcessHandle");
-			Object currentProcessHandle = ph.getMethod("current").invoke(null);
-			Object phInfo = ph.getMethod("info").invoke(currentProcessHandle);
-			Class<?> ph$info = Class.forName("java.lang.ProcessHandle$Info");
-			Optional<String> command = (Optional<String>) ph$info.getMethod("command").invoke(phInfo);
-			return command.get().toLowerCase(Locale.ROOT).endsWith("runelite.exe");
-		}
-		catch (ReflectiveOperationException ignored)
-		{
-			return false;
-		}
-	}
 }
