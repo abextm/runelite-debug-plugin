@@ -39,6 +39,7 @@ import net.runelite.client.config.ModifierlessKeybind;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginManager;
 import net.runelite.client.ui.DynamicGridLayout;
+import net.runelite.client.ui.FontManager;
 
 public class KeybindsPanel extends JPanel
 {
@@ -61,6 +62,7 @@ public class KeybindsPanel extends JPanel
 	private void showKeybindsPanel()
 	{
 		JTextArea textArea = new JTextArea(showKeybinds(), 30, 50);
+		textArea.setFont(FontManager.getDefaultFont().deriveFont(12.f));
 		JOptionPane.showMessageDialog(null, new JScrollPane(textArea), "Keybinds", JOptionPane.INFORMATION_MESSAGE);
 	}
 
