@@ -26,6 +26,8 @@ package abex.os.debug;
 
 import com.google.inject.Provider;
 import com.google.inject.Provides;
+import java.io.File;
+import java.io.IOException;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -37,6 +39,8 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.util.ImageUtil;
+import net.runelite.client.util.LinkBrowser;
+import net.runelite.client.util.OSType;
 
 @Slf4j
 @PluginDescriptor(
@@ -58,6 +62,9 @@ public class DebugPlugin extends Plugin
 
 	@Inject
 	private Provider<CoreDumpPanel> coreDumpPanel;
+
+	@Inject
+	private Provider<HeapDumpPanel> heapDumpPanel;
 
 	NavigationButton panelButton;
 
@@ -87,7 +94,14 @@ public class DebugPlugin extends Plugin
 	{
 		if (DebugConfig.GROUP.equals(ev.getGroup()))
 		{
-			coreDumpPanel.get().patch();
+			if (DebugConfig.CREATE_CORE_DUMP.equals(ev.getKey()))
+			{
+				coreDumpPanel.get().patch();
+			}
+			if (DebugConfig.CREATE_HEAP_DUMP.equals(ev.getKey()))
+			{
+				heapDumpPanel.get().apply();
+			}
 		}
 	}
 
@@ -95,5 +109,25 @@ public class DebugPlugin extends Plugin
 	DebugConfig provideConfig(ConfigManager configManager)
 	{
 		return configManager.getConfig(DebugConfig.class);
+	}
+
+	public static void openExplorer(File path)
+	{
+		if (OSType.getOSType() == OSType.Windows)
+		{
+			try
+			{
+				new ProcessBuilder("explorer", "/select,\"" + path.getAbsolutePath() + "\"")
+					.start();
+			}
+			catch (IOException e)
+			{
+				log.warn("", e);
+			}
+		}
+		else
+		{
+			LinkBrowser.open(path.getParentFile().getAbsolutePath());
+		}
 	}
 }

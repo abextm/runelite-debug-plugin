@@ -25,7 +25,6 @@
 package abex.os.debug;
 
 import com.sun.management.UnixOperatingSystemMXBean;
-import java.awt.Window;
 import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
@@ -33,39 +32,22 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import javax.inject.Inject;
 import javax.management.ObjectName;
-import javax.swing.JButton;
 import javax.swing.JCheckBox;
-import javax.swing.JFileChooser;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.Timer;
-import javax.swing.border.EmptyBorder;
-import javax.swing.filechooser.FileSystemView;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.Client;
 import net.runelite.client.RuneLite;
 import net.runelite.client.ui.DynamicGridLayout;
 
 @Slf4j
 public class ManagementPanel extends JPanel
 {
-	private final Client client;
-
 	@Inject
-	public ManagementPanel(Client client)
+	public ManagementPanel()
 	{
-		this.client = client;
-
 		setLayout(new DynamicGridLayout(0, 1));
 		add(new FeedbackButton.CopyToClipboardButton("Dump threads", () -> invokeDiagnosticCommand("threadPrint")));
 		add(new FeedbackButton.CopyToClipboardButton("Dump natives", () -> invokeDiagnosticCommand("vmDynlibs")));
-
-		JButton heapDump = new JButton("Heap dump");
-		add(heapDump);
-		heapDump.addActionListener(ev -> dumpHeap());
 
 		add(new FeedbackButton.CopyToClipboardButton("OS stats", this::dumpOSStats));
 
@@ -94,55 +76,6 @@ public class ManagementPanel extends JPanel
 			"decorators=uptime"
 		);
 		log.info("xlog: {}", out);
-	}
-
-	private void dumpHeap()
-	{
-		JFileChooser fc = new JFileChooser();
-		fc.setDialogTitle("Save heap dump");
-		fc.setSelectedFile(new File(FileSystemView.getFileSystemView().getDefaultDirectory(), "dump.hprof"));
-		if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION)
-		{
-			return;
-		}
-
-		File fi = fc.getSelectedFile();
-		fi.delete();
-		String filename = fi.getAbsoluteFile().getPath();
-
-		client.setPassword("");
-
-		JFrame frame = new JFrame("Heap dump");
-		frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-		JLabel l = new JLabel("Taking heap dump<br>This may take a while...");
-		l.setBorder(new EmptyBorder(15, 15, 15, 15));
-		frame.add(l);
-		frame.setType(Window.Type.POPUP);
-		frame.pack();
-		frame.setVisible(true);
-		frame.toFront();
-
-		Timer t = new Timer(300, v ->
-		{
-			try
-			{
-				ManagementFactory.getPlatformMBeanServer().invoke(
-					new ObjectName("com.sun.management:type=HotSpotDiagnostic"),
-					"dumpHeap",
-					new Object[]{filename, true},
-					new String[]{String.class.getName(), boolean.class.getName()}
-				);
-			}
-			catch (Exception e)
-			{
-				log.warn("unable to capture heap dump", e);
-				JOptionPane.showMessageDialog(this, e.toString(), "Heap dump error", JOptionPane.ERROR_MESSAGE);
-			}
-
-			frame.setVisible(false);
-		});
-		t.setRepeats(false);
-		t.start();
 	}
 
 	private String dumpOSStats()

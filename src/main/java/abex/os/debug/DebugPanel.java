@@ -39,6 +39,7 @@ public class DebugPanel extends PluginPanel
 	public DebugPanel(
 		ManagementPanel managementPanel,
 		KeybindsPanel keybindsPanel,
+		HeapDumpPanel heapDumpPanel,
 		CoreDumpPanel coreDumpPanel,
 		VirtualMemoryPanel virtualMemoryPanel,
 		ProfilerPanel profilerPanel)
@@ -50,12 +51,14 @@ public class DebugPanel extends PluginPanel
 		layout.setHorizontalGroup(layout.createParallelGroup()
 			.addComponent(managementPanel)
 			.addComponent(keybindsPanel)
+			.addComponent(heapDumpPanel)
 			.addComponent(coreDumpPanel)
 			.addComponent(virtualMemoryPanel)
 			.addComponent(profilerPanel));
 		layout.setVerticalGroup(layout.createSequentialGroup()
 			.addComponent(managementPanel)
 			.addComponent(keybindsPanel)
+			.addComponent(heapDumpPanel)
 			.addComponent(coreDumpPanel)
 			.addComponent(virtualMemoryPanel)
 			.addComponent(profilerPanel));

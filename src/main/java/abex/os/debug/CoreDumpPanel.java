@@ -99,6 +99,8 @@ public class CoreDumpPanel extends JPanel
 		{
 			configManager.setConfiguration(DebugConfig.GROUP, DebugConfig.CREATE_CORE_DUMP, checkBox.isSelected());
 		});
+
+		patch();
 	}
 
 	private void checkExistingDumps()
@@ -119,18 +121,7 @@ public class CoreDumpPanel extends JPanel
 		}
 
 		JButton lastDump = new JButton("Open last coredump");
-		lastDump.addActionListener(_ev ->
-		{
-			try
-			{
-				new ProcessBuilder("explorer", "/select,\"" + dumps[0].getAbsolutePath() + "\"")
-					.start();
-			}
-			catch (IOException e)
-			{
-				log.warn("", e);
-			}
-		});
+		lastDump.addActionListener(_ev -> DebugPlugin.openExplorer(dumps[0]));
 		add(lastDump);
 	}
 
@@ -143,7 +134,11 @@ public class CoreDumpPanel extends JPanel
 
 		boolean enabled = configManager.getConfiguration(DebugConfig.GROUP, DebugConfig.CREATE_CORE_DUMP, boolean.class) == Boolean.TRUE;
 		patch.set(enabled);
-		SwingUtilities.invokeLater(() -> statusLabel.setText(patch.status()));
+		SwingUtilities.invokeLater(() ->
+		{
+			checkBox.setSelected(enabled);
+			statusLabel.setText(patch.status());
+		});
 	}
 
 }

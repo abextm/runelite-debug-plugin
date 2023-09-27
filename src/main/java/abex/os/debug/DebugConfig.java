@@ -32,4 +32,5 @@ public interface DebugConfig extends Config
 {
 	String GROUP = "debug";
 	String CREATE_CORE_DUMP = "createCoreDump";
+	String CREATE_HEAP_DUMP = "createHeapDump";
 }
