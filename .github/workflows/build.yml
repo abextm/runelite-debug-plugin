@@ -21,7 +21,7 @@ jobs:
     - name: build linux-amd64
       run: |
         set -e -x
-        git clone --recursive https://github.com/abextm/runelite-debug-plugin.git
+        git clone --recursive --branch "$GITHUB_REF_NAME" https://github.com/abextm/runelite-debug-plugin.git
         mkdir -p build/linux-amd64
         cd build/linux-amd64
         scl enable devtoolset-7 -- ../../cmake/bin/cmake -S ../../runelite-debug-plugin/native -B .
