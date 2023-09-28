@@ -6,6 +6,7 @@ import java.io.EOFException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -72,16 +73,24 @@ public class HProfStripper
 	private long start;
 	private int identSize;
 
-	public HProfStripper(File in, File out) throws IOException
+	public HProfStripper(File in, File out, boolean zstd) throws IOException
 	{
 		this.in = new SeekFile(in);
 		var fos = new FileOutputStream(out);
-		var gzo = new GZIPOutputStream(fos)
+		OutputStream gzo;
+		if (zstd)
 		{
+			gzo = new ZstdOutputStream(fos, 9);
+		}
+		else
+		{
+			gzo = new GZIPOutputStream(fos)
 			{
-				this.def.setLevel(3);
-			}
-		};// */
+				{
+					this.def.setLevel(3);
+				}
+			};
+		};
 		this.out = new DataOutputStream(new BufferedOutputStream(gzo));
 	}
 
@@ -647,6 +656,7 @@ public class HProfStripper
 
 	public static void main(String... args) throws IOException
 	{
-		new HProfStripper(new File(args[0]), new File(args[1])).run();
+		ZstdOutputStream.init();
+		new HProfStripper(new File(args[0]), new File(args[1]), true).run();
 	}
 }

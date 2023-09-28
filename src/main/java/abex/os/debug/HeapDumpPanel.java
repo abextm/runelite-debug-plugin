@@ -103,8 +103,6 @@ public class HeapDumpPanel extends JPanel
 			}
 
 			File inFile = fc.getSelectedFile();
-			File outFile = new File(fc.getSelectedFile().getParentFile(),
-				fc.getSelectedFile().getName().replaceAll("\\.[^.]+$", "") + "_stripped.hprof.gz");
 
 			JFrame frame = new JFrame("Stripping heap dump");
 			frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
@@ -120,7 +118,20 @@ public class HeapDumpPanel extends JPanel
 			{
 				try
 				{
-					new HProfStripper(inFile, outFile).run();
+					boolean zstd = false;
+					try
+					{
+						ZstdOutputStream.init();
+						zstd = true;
+					}
+					catch (Throwable e)
+					{
+						log.info("unable to init zstd", e);
+					}
+
+					File outFile = new File(inFile.getParentFile(),
+						inFile.getName().replaceAll("\\.[^.]+$", "") + "_stripped.hprof." + (zstd ? "zstd" : "gz"));
+					new HProfStripper(inFile, outFile, zstd).run();
 					DebugPlugin.openExplorer(outFile);
 				}
 				catch (IOException e)
