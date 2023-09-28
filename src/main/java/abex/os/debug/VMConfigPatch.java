@@ -54,7 +54,7 @@ public class VMConfigPatch
 	private static final String unsupported = unsupported();
 
 	@Nullable
-	private static File packrConfigFile = null;
+	private static File packrConfigFile;
 
 	private static String unsupported()
 	{
