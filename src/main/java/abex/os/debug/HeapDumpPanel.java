@@ -106,7 +106,7 @@ public class HeapDumpPanel extends JPanel
 
 			JFrame frame = new JFrame("Stripping heap dump");
 			frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-			JLabel l = new JLabel("Stripping heap dump<br>This may take a while...");
+			JLabel l = new JLabel("<html>Stripping heap dump<br>This may take a while...");
 			l.setBorder(new EmptyBorder(15, 15, 15, 15));
 			frame.add(l);
 			frame.setType(Window.Type.POPUP);
@@ -195,7 +195,7 @@ public class HeapDumpPanel extends JPanel
 
 		JFrame frame = new JFrame("Heap dump");
 		frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-		JLabel l = new JLabel("Taking heap dump<br>This may take a while...");
+		JLabel l = new JLabel("<html>Taking heap dump<br>This may take a while...");
 		l.setBorder(new EmptyBorder(15, 15, 15, 15));
 		frame.add(l);
 		frame.setType(Window.Type.POPUP);
