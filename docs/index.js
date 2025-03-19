@@ -26,7 +26,7 @@ import * as fzstd from 'https://cdn.skypack.dev/pin/fzstd@v0.0.3-CqhayxiadQP2aWU
 import {NumberArrayKeyedMap} from "./collections.js";
 
 let el = {};
-for (let name of ["file", "container", "info", "openProfiler", "progress"]) {
+for (let name of ["file", "container", "info", "openProfiler", "downloadGecko", "progress"]) {
 	el[name] = document.getElementById(name);
 }
 
@@ -73,6 +73,8 @@ class Reader {
 		return Reader.coder.decode(s);
 	}
 }
+
+let currentProfile;
 
 const PHASE_INSTANT = 0;
 const PHASE_INTERVAL = 1;
@@ -537,6 +539,7 @@ let load = async () => {
 			threads: threads.map(t => t.toJSON()),
 		};
 		console.log(data);
+		currentProfile = data;
 		blob = new Blob([JSON.stringify(data)])
 	}
 
@@ -547,15 +550,36 @@ let load = async () => {
 	}
 	{
 		let url = URL.createObjectURL(blob);
-		el.openProfiler.href = url;
-		el.openProfiler.download = file.name + ".gecko_profile.json";
-
-		// ideally we could do this but csp & cors prevent this ;-;
-		//el.openProfiler.href = "https://profiler.firefox.com/from-url/" + encodeURIComponent(url);
+		el.downloadGecko.href = url;
+		el.downloadGecko.download = file.name + ".gecko_profile.json";
 	}
 	await displayProgress("done");
 	el.container.classList.remove("hidden");
 }
+
+
+el.openProfiler.addEventListener("click", ev => {
+	let origin = "https://profiler.firefox.com";
+	let prof = window.open(origin + "/from-post-message/");
+	if (prof) {
+		let interval = setInterval(() => {
+			prof.postMessage({
+				name: "ready:request"
+			}, origin);
+		}, 100);
+		window.addEventListener("message", ev => {
+			if (ev.data?.name == "ready:response") {
+				console.log("ff profiler ready, sending profile");
+				clearInterval(interval);
+				prof.postMessage({
+					name: "inject-profile",
+					profile: currentProfile,
+				}, origin);
+			}
+		}, false);
+	}
+	return false;
+})
 
 el.file.addEventListener("change", ev => load());
 if (el.file.files.length > 0) {
