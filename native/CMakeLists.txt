@@ -26,7 +26,7 @@ add_subdirectory(zstd/build/cmake)
 
 include_directories(${JNI_INCLUDE_DIRS} zstd/lib/)
 
-add_library(Profiler SHARED src/profiler.cpp src/jnizstd.cpp)
+add_library(Profiler SHARED src/profiler.cpp src/jnizstd.cpp src/misc.cpp)
 
 if(NOT MSVC)
 	add_compile_options(-Wall -Wno-multichar -O3)

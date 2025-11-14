@@ -33,6 +33,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 import java.util.Locale;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.util.OSType;
 
@@ -56,13 +57,14 @@ public class Profiler
 	private static final long[] heapinfo = new long[4];
 	private static final MemoryMXBean memBean = ManagementFactory.getMemoryMXBean();
 
-	private static boolean initialized = false;
+	@Getter
+	private static Boolean initialized;
 
 	public static synchronized void init()
 	{
-		if (!initialized)
+		if (initialized == null)
 		{
-			initialized = true;
+			initialized = Boolean.FALSE;
 			String os = OSType.getOSType().name().toLowerCase(Locale.US);
 			String name = "invalid";
 			String suffix = ".invalid";
@@ -108,6 +110,8 @@ public class Profiler
 				}
 
 				Runtime.getRuntime().load(tmp.getAbsolutePath());
+
+				initialized = Boolean.TRUE;
 			}
 			catch (IOException e)
 			{

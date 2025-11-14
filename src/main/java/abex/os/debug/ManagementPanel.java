@@ -38,6 +38,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.RuneLite;
 import net.runelite.client.ui.DynamicGridLayout;
+import net.runelite.client.util.OSType;
 
 @Slf4j
 public class ManagementPanel extends JPanel
@@ -47,7 +48,18 @@ public class ManagementPanel extends JPanel
 	{
 		setLayout(new DynamicGridLayout(0, 1));
 		add(new FeedbackButton.CopyToClipboardButton("Dump threads", () -> invokeDiagnosticCommand("threadPrint")));
-		add(new FeedbackButton.CopyToClipboardButton("Dump natives", () -> invokeDiagnosticCommand("vmDynlibs")));
+		add(new FeedbackButton.CopyToClipboardButton("Dump natives", () ->
+		{
+			if (OSType.getOSType() == OSType.Windows)
+			{
+				if (MiscNative.loaded())
+				{
+					return MiscNative.dynlibs();
+				}
+			}
+
+			return invokeDiagnosticCommand("vmDynlibs");
+		}));
 
 		add(new FeedbackButton.CopyToClipboardButton("OS stats", this::dumpOSStats));
 
