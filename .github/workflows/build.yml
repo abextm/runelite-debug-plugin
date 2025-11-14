@@ -5,15 +5,19 @@ on:
   workflow_dispatch:
 jobs:
   linux-amd64:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     container:
-      image: amd64/centos:7.9.2009
+      image: amd64/ubuntu:20.04
     steps:
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: 11
     - name: install dependencies
       run: |
         set -e -x
-        yum -y install centos-release-scl
-        yum -y install devtoolset-7 git java-11-openjdk-devel
+        apt update
+        DEBIAN_FRONTEND=noninteractive apt install -y g++ git curl cmake
         curl -Lo cmake-3.23.2-linux-x86_64.tar.gz 'https://github.com/Kitware/CMake/releases/download/v3.23.2/cmake-3.23.2-linux-x86_64.tar.gz'
         echo "aaced6f745b86ce853661a595bdac6c5314a60f8181b6912a0a4920acfa32708  cmake-3.23.2-linux-x86_64.tar.gz" | sha256sum -c
         tar -xf cmake-3.23.2-linux-x86_64.tar.gz
@@ -24,9 +28,9 @@ jobs:
         git clone --recursive --branch "$GITHUB_REF_NAME" https://github.com/abextm/runelite-debug-plugin.git
         mkdir -p build/linux-amd64
         cd build/linux-amd64
-        scl enable devtoolset-7 -- ../../cmake/bin/cmake -S ../../runelite-debug-plugin/native -B .
-        scl enable devtoolset-7 -- make Profiler -j2
-    - uses: actions/upload-artifact@v3
+        ../../cmake/bin/cmake -S ../../runelite-debug-plugin/native -B .
+        make Profiler -j2
+    - uses: actions/upload-artifact@v4
       with:
         name: linux-amd64
         path: build/linux-amd64/libProfiler.so
@@ -35,7 +39,7 @@ jobs:
   macos-universal:
     runs-on: macos-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
     - name: build macos-universal
@@ -43,9 +47,9 @@ jobs:
         set -e -x
         mkdir -p build/macos-universal
         cd build/macos-universal
-        cmake -S ../../native -B .
+        cmake -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -S ../../native -B .
         make Profiler -j2
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: macos-universal
         path: build/macos-universal/libProfiler.dylib
@@ -54,7 +58,7 @@ jobs:
   windows-amd64:
     runs-on: windows-2022
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
     - uses: ilammy/msvc-dev-cmd@v1
@@ -69,7 +73,7 @@ jobs:
         if (!$?) { exit 1 }
         ninja Profiler
         if (!$?) { exit 1 }
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: windows-amd64
         path: build/windows-amd64/profiler.dll
@@ -78,7 +82,7 @@ jobs:
   windows-x86:
     runs-on: windows-2022
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
     - uses: ilammy/msvc-dev-cmd@v1
@@ -93,24 +97,24 @@ jobs:
         if (!$?) { exit 1 }
         ninja Profiler
         if (!$?) { exit 1 }
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: windows-x86
         path: build/windows-x86/profiler.dll
         retention-days: 1
         if-no-files-found: error
   java:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     needs: [linux-amd64, macos-universal, windows-amd64, windows-x86]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    - uses: actions/setup-java@v3
+    - uses: actions/setup-java@v4
       with:
-        distribution: adopt
+        distribution: temurin
         java-version: 11
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         path: src/main/resources/natives
     - name: bump
