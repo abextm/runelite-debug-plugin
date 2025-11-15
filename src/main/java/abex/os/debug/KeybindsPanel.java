@@ -63,7 +63,7 @@ public class KeybindsPanel extends JPanel
 	{
 		JTextArea textArea = new JTextArea(showKeybinds(), 30, 50);
 		textArea.setFont(FontManager.getDefaultFont().deriveFont(12.f));
-		JOptionPane.showMessageDialog(null, new JScrollPane(textArea), "Keybinds", JOptionPane.INFORMATION_MESSAGE);
+		JOptionPane.showMessageDialog(this, new JScrollPane(textArea), "Keybinds", JOptionPane.INFORMATION_MESSAGE);
 	}
 
 	private String showKeybinds()
