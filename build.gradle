@@ -19,6 +19,8 @@ def runeLiteVersion = 'latest.release'
 dependencies {
 	compileOnly group: 'net.runelite', name:'client', version: runeLiteVersion
 
+    implementation 'org.netbeans.modules:org-netbeans-lib-profiler:RELEASE280'
+
 	compileOnly 'org.projectlombok:lombok:1.18.4'
 	annotationProcessor 'org.projectlombok:lombok:1.18.4'
 
