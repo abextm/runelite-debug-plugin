@@ -699,7 +699,6 @@ public class HProfStripper implements AutoCloseable
 
 	private static class RetainedObjectMetadata
 	{
-		long id;
 		int size;
 		RetainedClassMetadata rcm;
 		List<Long> succs;
@@ -822,7 +821,6 @@ public class HProfStripper implements AutoCloseable
 					}
 
 					RetainedObjectMetadata rom = new RetainedObjectMetadata();
-					rom.id = obj;
 					objects.add(rom);
 					objIdToNodeId.put(obj, objects.size() - 1);
 
@@ -837,7 +835,6 @@ public class HProfStripper implements AutoCloseable
 					long end = sz + in.offset();
 
 					RetainedObjectMetadata rom = new RetainedObjectMetadata();
-					rom.id = obj;
 					rom.rcm = rcm;
 					rom.size = rcm.size;
 					objects.add(rom);
@@ -888,7 +885,6 @@ public class HProfStripper implements AutoCloseable
 					RetainedClassMetadata rcm = classes.get(arrayClassId);
 
 					RetainedObjectMetadata rom = new RetainedObjectMetadata();
-					rom.id = obj;
 					rom.rcm = rcm;
 					rom.size = size * identSize + OBJECT_HEADER_SIZE + ARRAY_LENGTH_SIZE;
 					objects.add(rom);
@@ -916,7 +912,6 @@ public class HProfStripper implements AutoCloseable
 					skip(size * typeSizes[typ]);
 
 					RetainedObjectMetadata rom = new RetainedObjectMetadata();
-					rom.id = obj;
 					rom.size = size * typeSizes[typ] + OBJECT_HEADER_SIZE + ARRAY_LENGTH_SIZE;
 					objects.add(rom);
 					objIdToNodeId.put(obj, objects.size() - 1);
@@ -1004,7 +999,6 @@ public class HProfStripper implements AutoCloseable
 		private void addRoot()
 		{
 			RetainedObjectMetadata rom = new RetainedObjectMetadata();
-			rom.id = 1L;
 			objects.add(rom);
 			objIdToNodeId.put(-1L, objects.size() - 1);
 			rom.succs = new ArrayList<>();
