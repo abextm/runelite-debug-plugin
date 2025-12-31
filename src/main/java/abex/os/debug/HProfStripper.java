@@ -697,24 +697,34 @@ public class HProfStripper implements AutoCloseable
 		}
 	}
 
+	private static class RetainedObjectMetadata
+	{
+		long id;
+		int size;
+		RetainedClassMetadata rcm;
+		List<Long> succs;
+	}
+
 	@AllArgsConstructor
 	public static class RetainedSizeResult
 	{
 		final int num;
 		private final Map<Long, RetainedClassMetadata> classes;
-		private final List<RetainedClassMetadata> objClasses;
+		private final List<RetainedObjectMetadata> objects;
 		final long[] retainedSize;
 		final int[] numObjects;
 
 		public String clazz(int n)
 		{
-			var c = objClasses.get(n);
+			var obj = objects.get(n);
+			var c = obj.rcm;
 			return c != null ? c.name : null;
 		}
 
 		public String parentClazz(int n)
 		{
-			var c = objClasses.get(n);
+			var obj = objects.get(n);
+			var c = obj.rcm;
 			if (c == null)
 			{
 				return null;
@@ -735,12 +745,8 @@ public class HProfStripper implements AutoCloseable
 
 		private final Map<Long, String> strings = new HashMap<>();
 		private final Map<Long, RetainedClassMetadata> classes = new HashMap<>();
-
-		private final List<Long> objIds = new ArrayList<>();
-		private final List<Integer> objSizes = new ArrayList<>();
-		private final List<RetainedClassMetadata> objClasses = new ArrayList<>();
+		private final List<RetainedObjectMetadata> objects = new ArrayList<>();
 		private final Map<Long, Integer> objIdToNodeId = new HashMap<>();
-		private final List<List<Long>> succs = new ArrayList<>();
 
 		@Override
 		protected void section(int tag, int ts, int bytes) throws IOException
@@ -815,11 +821,10 @@ public class HProfStripper implements AutoCloseable
 						rcm.fieldNames[i] = strings.get(symId);
 					}
 
-					objIds.add(obj);
-					objClasses.add(null);
-					objSizes.add(0);
-					objIdToNodeId.put(obj, objIds.size() - 1);
-					succs.add(new ArrayList<>());
+					RetainedObjectMetadata rom = new RetainedObjectMetadata();
+					rom.id = obj;
+					objects.add(rom);
+					objIdToNodeId.put(obj, objects.size() - 1);
 
 					return;
 				}
@@ -831,11 +836,12 @@ public class HProfStripper implements AutoCloseable
 					int sz = in.readInt();
 					long end = sz + in.offset();
 
-					objIds.add(obj);
-					objClasses.add(rcm);
-					objSizes.add(rcm.size);
-					objIdToNodeId.put(obj, objIds.size() - 1);
-					succs.add(new ArrayList<>());
+					RetainedObjectMetadata rom = new RetainedObjectMetadata();
+					rom.id = obj;
+					rom.rcm = rcm;
+					rom.size = rcm.size;
+					objects.add(rom);
+					objIdToNodeId.put(obj, objects.size() - 1);
 
 					int fieldIdx = 0;
 					while (in.offset() < end)
@@ -848,7 +854,11 @@ public class HProfStripper implements AutoCloseable
 								long fieldObjectId = readId();
 								if (fieldObjectId > 0)
 								{
-									succs.get(succs.size() - 1).add(fieldObjectId);
+									if (rom.succs == null)
+									{
+										rom.succs = new ArrayList<>();
+									}
+									rom.succs.add(fieldObjectId);
 								}
 							}
 							else
@@ -877,18 +887,23 @@ public class HProfStripper implements AutoCloseable
 
 					RetainedClassMetadata rcm = classes.get(arrayClassId);
 
-					objIds.add(obj);
-					objClasses.add(rcm);
-					objSizes.add(size * identSize + OBJECT_HEADER_SIZE + ARRAY_LENGTH_SIZE);
-					objIdToNodeId.put(obj, objIds.size() - 1);
-					succs.add(new ArrayList<>());
+					RetainedObjectMetadata rom = new RetainedObjectMetadata();
+					rom.id = obj;
+					rom.rcm = rcm;
+					rom.size = size * identSize + OBJECT_HEADER_SIZE + ARRAY_LENGTH_SIZE;
+					objects.add(rom);
+					objIdToNodeId.put(obj, objects.size() - 1);
 
 					for (int i = 0; i < size; ++i)
 					{
 						long elementObjectId = readId();
 						if (elementObjectId > 0)
 						{
-							succs.get(succs.size() - 1).add(elementObjectId);
+							if (rom.succs == null)
+							{
+								rom.succs = new ArrayList<>();
+							}
+							rom.succs.add(elementObjectId);
 						}
 					}
 					return;
@@ -900,11 +915,11 @@ public class HProfStripper implements AutoCloseable
 					int typ = in.readByte();
 					skip(size * typeSizes[typ]);
 
-					objIds.add(obj);
-					objClasses.add(null);
-					objSizes.add(size * typeSizes[typ] + OBJECT_HEADER_SIZE + ARRAY_LENGTH_SIZE);
-					objIdToNodeId.put(obj, objIds.size() - 1);
-					succs.add(new ArrayList<>());
+					RetainedObjectMetadata rom = new RetainedObjectMetadata();
+					rom.id = obj;
+					rom.size = size * typeSizes[typ] + OBJECT_HEADER_SIZE + ARRAY_LENGTH_SIZE;
+					objects.add(rom);
+					objIdToNodeId.put(obj, objects.size() - 1);
 					return;
 				}
 			}
@@ -916,19 +931,20 @@ public class HProfStripper implements AutoCloseable
 		{
 			addRoot();
 
-			int[][] succs = new int[objIds.size()][];
+			int[][] succs = new int[objects.size()][];
 			for (int i = 0; i < succs.length; ++i)
 			{
-				succs[i] = new int[this.succs.get(i).size()];
+				var rom = objects.get(i);
+				succs[i] = new int[rom.succs != null ? rom.succs.size() : 0];
 				for (int j = 0; j < succs[i].length; ++j)
 				{
-					Integer node = objIdToNodeId.get(this.succs.get(i).get(j));
+					Integer node = objIdToNodeId.get(rom.succs.get(j));
 					assert node >= 0;
 					succs[i][j] = node;
 				}
 			}
 
-			var dom = new LengauerTarjan(objIds.size(), objIdToNodeId.get(-1L), succs);
+			var dom = new LengauerTarjan(objects.size(), objIdToNodeId.get(-1L), succs);
 			int[] idom = dom.computeIdom();
 //			System.out.println("done computing immediate dominators");
 
@@ -943,7 +959,7 @@ public class HProfStripper implements AutoCloseable
 			computeObjects(domTree, objIdToNodeId.get(-1L), numObjects);
 //			System.out.println("done computing retained objects");
 
-			return new RetainedSizeResult(idom.length, classes, objClasses, retainedSize, numObjects);
+			return new RetainedSizeResult(idom.length, classes, objects, retainedSize, numObjects);
 		}
 
 		private List<Integer>[] computeDomTree(int[] idom)
@@ -966,7 +982,8 @@ public class HProfStripper implements AutoCloseable
 
 		private long computeRetained(List<Integer>[] domTree, int node, long[] retainedSize)
 		{
-			long sum = objSizes.get(node);
+			var rom = objects.get(node);
+			long sum = rom.size;
 			for (int child : domTree[node])
 			{
 				sum += computeRetained(domTree, child, retainedSize);
@@ -986,11 +1003,11 @@ public class HProfStripper implements AutoCloseable
 
 		private void addRoot()
 		{
-			objIds.add(-1L);
-			objClasses.add(null);
-			objSizes.add(0);
-			objIdToNodeId.put(-1L, objIds.size() - 1);
-			succs.add(new ArrayList<>());
+			RetainedObjectMetadata rom = new RetainedObjectMetadata();
+			rom.id = 1L;
+			objects.add(rom);
+			objIdToNodeId.put(-1L, objects.size() - 1);
+			rom.succs = new ArrayList<>();
 
 			for (var rcm : classes.values())
 			{
@@ -1000,7 +1017,7 @@ public class HProfStripper implements AutoCloseable
 					{
 						if (rootObjId > 0)
 						{
-							succs.get(succs.size() - 1).add(rootObjId);
+							rom.succs.add(rootObjId);
 						}
 					}
 				}
