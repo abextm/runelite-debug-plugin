@@ -25,18 +25,15 @@
 package abex.os.debug;
 
 import com.sun.management.HotSpotDiagnosticMXBean;
+import java.awt.Dimension;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -51,19 +48,17 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
+import javax.swing.JTable;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.filechooser.FileSystemView;
+import javax.swing.table.DefaultTableModel;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.client.RuneLite;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.DynamicGridLayout;
-import org.netbeans.lib.profiler.heap.Heap;
-import org.netbeans.lib.profiler.heap.HeapFactory;
-import org.netbeans.lib.profiler.heap.JavaClass;
 
 @Slf4j
 @Singleton
@@ -150,7 +145,10 @@ public class HeapDumpPanel extends JPanel
 
 					File outFile = new File(inFile.getParentFile(),
 						inFile.getName().replaceAll("\\.[^.]+$", "") + "_stripped.hprof." + (zstd ? "zstd" : "gz"));
-					new HProfStripper(inFile, outFile, zstd).run();
+					try (var h = new HProfStripper(inFile, outFile, zstd))
+					{
+						h.runStripper();
+					}
 					DebugPlugin.openExplorer(outFile);
 				}
 				catch (IOException e)
@@ -272,22 +270,22 @@ public class HeapDumpPanel extends JPanel
 				new String[]{String.class.getName(), boolean.class.getName()}
 			);
 
-			Heap heap;
-			try (FileChannel fc = FileChannel.open(file.toPath(), StandardOpenOption.READ))
+			HProfStripper.RetainedSizeResult rsr;
+			try (var hprof = new HProfStripper(file))
 			{
-				MappedByteBuffer buffer =
-					fc.map(FileChannel.MapMode.READ_ONLY, 0, fc.size());
-				heap = HeapFactory.createHeap(buffer, 0);
+				rsr = hprof.runRetainedSizeComputer();
 			}
 
-			List<JavaClass> all = heap.getAllClasses();
 			Map<String, Long> pluginRetainedSizes = new HashMap<>();
-			for (JavaClass clazz : all)
+			Map<String, Integer> pluginNumObjects = new HashMap<>();
+			for (int n = 0; n < rsr.num; ++n)
 			{
-				if (clazz.getSuperClass() != null && clazz.getSuperClass().getName().equals("net.runelite.client.plugins.Plugin"))
+				String parentClazz = rsr.parentClazz(n);
+				if (parentClazz != null && parentClazz.equals("net/runelite/client/plugins/Plugin"))
 				{
-					long retainedSize = clazz.getRetainedSizeByClass();
-					pluginRetainedSizes.put(clazz.getName(), retainedSize);
+					String clazz = rsr.clazz(n);
+					pluginRetainedSizes.put(clazz, rsr.retainedSize[n]);
+					pluginNumObjects.put(clazz, rsr.numObjects[n]);
 				}
 			}
 
@@ -301,24 +299,40 @@ public class HeapDumpPanel extends JPanel
 						LinkedHashMap::new
 					));
 
-			StringBuilder text = new StringBuilder();
+			DefaultTableModel model = new DefaultTableModel(
+				new Object[]{"Plugin", "Size (KB)", "Num objects"}, 0
+			)
+			{
+				@Override
+				public boolean isCellEditable(int row, int column)
+				{
+					return false; // make table read-only
+				}
+			};
+
 			for (var entry : sorted.entrySet())
 			{
-				text.append(entry.getKey()).append(": ").append(String.format("%,d", entry.getValue() / 1024)).append("KB\n");
+				model.addRow(new Object[]{
+					entry.getKey(),
+					String.format("%,d", entry.getValue() / 1024),
+					String.format("%,d", pluginNumObjects.get(entry.getKey()))
+				});
 			}
 
-			JTextArea textArea = new JTextArea(text.toString());
-			textArea.setEditable(false);
-			textArea.setLineWrap(true);
-			textArea.setWrapStyleWord(true);
+			JTable table = new JTable(model);
+			table.setFillsViewportHeight(true);
+			table.setAutoCreateRowSorter(false);
+
+			table.getColumnModel().getColumn(0).setPreferredWidth(400);
+			table.getColumnModel().getColumn(1).setPreferredWidth(150);
 
 			JScrollPane scrollPane = new JScrollPane(
-				textArea,
+				table,
 				JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
 				JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
 			);
 
-			scrollPane.setPreferredSize(new java.awt.Dimension(600, 400));
+			scrollPane.setPreferredSize(new Dimension(800, 600));
 
 			JOptionPane.showMessageDialog(
 				this,
@@ -326,7 +340,6 @@ public class HeapDumpPanel extends JPanel
 				"Memory Analyzer",
 				JOptionPane.INFORMATION_MESSAGE
 			);
-
 		}
 		catch (Exception ex)
 		{
