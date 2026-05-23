@@ -24,18 +24,17 @@
  */
 package abex.os.debug;
 
+import com.google.common.reflect.ClassPath;
 import com.sun.management.HotSpotDiagnosticMXBean;
-import java.awt.Dimension;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Files;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -47,13 +46,10 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTable;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.filechooser.FileSystemView;
-import javax.swing.table.DefaultTableModel;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.client.RuneLite;
@@ -270,81 +266,76 @@ public class HeapDumpPanel extends JPanel
 				new String[]{String.class.getName(), boolean.class.getName()}
 			);
 
-			HProfStripper.RetainedSizeResult rsr;
-			try (var hprof = new HProfStripper(file))
-			{
-				rsr = hprof.runRetainedSizeComputer();
-			}
-
-			Map<String, Long> pluginRetainedSizes = new HashMap<>();
-			Map<String, Integer> pluginNumObjects = new HashMap<>();
-			for (int n = 0; n < rsr.num; ++n)
-			{
-				String parentClazz = rsr.parentClazz(n);
-				if (parentClazz != null && parentClazz.equals("net/runelite/client/plugins/Plugin"))
-				{
-					String clazz = rsr.clazz(n);
-					pluginRetainedSizes.put(clazz, rsr.retainedSize[n]);
-					pluginNumObjects.put(clazz, rsr.numObjects[n]);
-				}
-			}
-
-			Map<String, Long> sorted =
-				pluginRetainedSizes.entrySet().stream()
-					.sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-					.collect(Collectors.toMap(
-						Map.Entry::getKey,
-						Map.Entry::getValue,
-						(a, b) -> a,
-						LinkedHashMap::new
-					));
-
-			DefaultTableModel model = new DefaultTableModel(
-				new Object[]{"Plugin", "Size (KB)", "Num objects"}, 0
-			)
-			{
-				@Override
-				public boolean isCellEditable(int row, int column)
-				{
-					return false; // make table read-only
-				}
-			};
-
-			for (var entry : sorted.entrySet())
-			{
-				model.addRow(new Object[]{
-					entry.getKey(),
-					String.format("%,d", entry.getValue() / 1024),
-					String.format("%,d", pluginNumObjects.get(entry.getKey()))
-				});
-			}
-
-			JTable table = new JTable(model);
-			table.setFillsViewportHeight(true);
-			table.setAutoCreateRowSorter(false);
-
-			table.getColumnModel().getColumn(0).setPreferredWidth(400);
-			table.getColumnModel().getColumn(1).setPreferredWidth(150);
-
-			JScrollPane scrollPane = new JScrollPane(
-				table,
-				JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-				JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
-			);
-
-			scrollPane.setPreferredSize(new Dimension(800, 600));
-
-			JOptionPane.showMessageDialog(
-				this,
-				scrollPane,
-				"Memory Analyzer",
-				JOptionPane.INFORMATION_MESSAGE
-			);
+			runRetainedSizeComputer(file);
 		}
 		catch (Exception ex)
 		{
 			log.error(null, ex);
 			JOptionPane.showMessageDialog(this, ex.toString(), "Memory Analyzer", JOptionPane.ERROR_MESSAGE);
 		}
+	}
+
+	private void runRetainedSizeComputer(File hprof) throws IOException
+	{
+		Path classpathRoot = Files.createTempDirectory("runelite_ma_classes");
+		copyRetainedSizeAnalyzerClasses(classpathRoot);
+
+		Path java = Path.of(System.getProperty("java.home"), "bin", isWindows() ? "java.exe" : "java");
+		Process process = new ProcessBuilder(
+			java.toString(),
+			"-Xmx2G",
+			"-cp",
+			classpathRoot.toString(),
+			RetainedSizeAnalyzer.class.getName(),
+			hprof.getAbsolutePath()
+		)
+			.redirectErrorStream(true)
+			.start();
+
+		Thread waiter = new Thread(() ->
+		{
+			try (InputStream in = process.getInputStream())
+			{
+				in.transferTo(System.out);
+				int exit = process.waitFor();
+				if (exit != 0)
+				{
+					log.warn("retained size analyzer exited with {}", exit);
+				}
+				else
+				{
+					log.info("retained size analyzer exited with {}", exit);
+				}
+			}
+			catch (Exception e)
+			{
+				log.warn("error waiting for retained size analyzer", e);
+			}
+		}, "retained-size-analyzer");
+		waiter.setDaemon(true);
+		waiter.start();
+	}
+
+	private static void copyRetainedSizeAnalyzerClasses(Path classpathRoot) throws IOException
+	{
+		for (ClassPath.ClassInfo info : ClassPath.from(HProfStripper.class.getClassLoader()).getAllClasses())
+		{
+			if (!info.getPackageName().equals(HProfStripper.class.getPackage().getName()))
+			{
+				continue;
+			}
+
+			Path destination = classpathRoot.resolve(info.getResourceName());
+			Files.createDirectories(destination.getParent());
+			try (InputStream in = info.url().openStream())
+			{
+				Files.copy(in, destination, StandardCopyOption.REPLACE_EXISTING);
+			}
+		}
+	}
+
+	private static boolean isWindows()
+	{
+		return System.getProperty("os.name").toLowerCase().contains("win");
 	}
 }
