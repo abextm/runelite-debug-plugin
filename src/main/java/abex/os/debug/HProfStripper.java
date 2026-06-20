@@ -931,11 +931,18 @@ public class HProfStripper implements AutoCloseable
 			{
 				var rom = objects.get(i);
 				succs[i] = new int[rom.succs != null ? rom.succs.size() : 0];
+				int k = 0;
 				for (int j = 0; j < succs[i].length; ++j)
 				{
 					Integer node = objIdToNodeId.get(rom.succs.get(j));
-					assert node >= 0;
-					succs[i][j] = node;
+					if (node != null)
+					{
+						succs[i][k++] = node;
+					}
+				}
+				if (k != succs[i].length)
+				{
+					succs[i] = Arrays.copyOf(succs[i], k);
 				}
 			}
 
