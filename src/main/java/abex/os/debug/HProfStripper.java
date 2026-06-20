@@ -944,9 +944,12 @@ public class HProfStripper implements AutoCloseable
 				{
 					succs[i] = Arrays.copyOf(succs[i], k);
 				}
+				rom.succs = null;
 			}
+			int rootNode = objIdToNodeId.get(-1L);
+			objIdToNodeId.clear();
 
-			var dom = new LengauerTarjan(objects.size(), objIdToNodeId.get(-1L), succs);
+			var dom = new LengauerTarjan(objects.size(), rootNode, succs);
 			int[] idom = dom.computeIdom();
 //			System.out.println("done computing immediate dominators");
 
@@ -954,11 +957,11 @@ public class HProfStripper implements AutoCloseable
 //			System.out.println("done computing dominator tree");
 
 			long[] retainedSize = new long[idom.length];
-			computeRetained(domTree, objIdToNodeId.get(-1L), retainedSize);
+			computeRetained(domTree, rootNode, retainedSize);
 //			System.out.println("done computing retained size");
 
 			int[] numObjects = new int[idom.length];
-			computeObjects(domTree, objIdToNodeId.get(-1L), numObjects);
+			computeObjects(domTree, rootNode, numObjects);
 //			System.out.println("done computing retained objects");
 
 			return new RetainedSizeResult(idom.length, classes, objects, retainedSize, numObjects);
