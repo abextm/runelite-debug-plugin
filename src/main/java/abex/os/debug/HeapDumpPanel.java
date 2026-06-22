@@ -55,6 +55,7 @@ import net.runelite.api.Client;
 import net.runelite.client.RuneLite;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.DynamicGridLayout;
+import net.runelite.client.util.OSType;
 
 @Slf4j
 @Singleton
@@ -277,26 +278,22 @@ public class HeapDumpPanel extends JPanel
 
 	private void runRetainedSizeComputer(File hprof) throws IOException
 	{
-		Path classpathRoot = Files.createTempDirectory("runelite_ma_classes");
-		copyRetainedSizeAnalyzerClasses(classpathRoot);
-
-		Path java = Path.of(System.getProperty("java.home"), "bin", isWindows() ? "java.exe" : "java");
+		Path java = Path.of(System.getProperty("java.home"), "bin", OSType.getOSType() == OSType.Windows ? "java.exe" : "java");
 		Process process = new ProcessBuilder(
 			java.toString(),
 			"-Xmx2G",
 			"-cp",
-			classpathRoot.toString(),
+			RetainedSizeAnalyzer.class.getProtectionDomain().getCodeSource().getLocation().getPath(),
 			RetainedSizeAnalyzer.class.getName(),
 			hprof.getAbsolutePath()
 		)
-			.redirectErrorStream(true)
+			.inheritIO()
 			.start();
 
 		Thread waiter = new Thread(() ->
 		{
-			try (InputStream in = process.getInputStream())
+			try
 			{
-				in.transferTo(System.out);
 				int exit = process.waitFor();
 				if (exit != 0)
 				{
@@ -307,35 +304,11 @@ public class HeapDumpPanel extends JPanel
 					log.info("retained size analyzer exited with {}", exit);
 				}
 			}
-			catch (Exception e)
+			catch (InterruptedException ignored)
 			{
-				log.warn("error waiting for retained size analyzer", e);
 			}
 		}, "retained-size-analyzer");
 		waiter.setDaemon(true);
 		waiter.start();
-	}
-
-	private static void copyRetainedSizeAnalyzerClasses(Path classpathRoot) throws IOException
-	{
-		for (ClassPath.ClassInfo info : ClassPath.from(HProfStripper.class.getClassLoader()).getAllClasses())
-		{
-			if (!info.getPackageName().equals(HProfStripper.class.getPackage().getName()))
-			{
-				continue;
-			}
-
-			Path destination = classpathRoot.resolve(info.getResourceName());
-			Files.createDirectories(destination.getParent());
-			try (InputStream in = info.url().openStream())
-			{
-				Files.copy(in, destination, StandardCopyOption.REPLACE_EXISTING);
-			}
-		}
-	}
-
-	private static boolean isWindows()
-	{
-		return System.getProperty("os.name").toLowerCase().contains("win");
 	}
 }
