@@ -117,9 +117,6 @@ jobs:
     - uses: actions/download-artifact@v4
       with:
         path: src/main/resources/natives
-    - name: bump
-      if: ${{ github.event.inputs.RELEASE == 'yes' }}
-      run: perl -i -p -e 's/-SNAPSHOT$//' version
     - name: build
       run: |
         set -e -x
@@ -133,7 +130,8 @@ jobs:
         git config user.name "Release Script"
         git config user.email abex@runelite.net
         git add src/main/resources/natives/**
-        git add version
+        sed -i 's/build=.*/build=standard/' runelite-plugin.properties 
+        git add runelite-plugin.properties
         git commit -m "Binaries for $COMMIT"
         git show HEAD
         git push origin binaries-$COMMIT

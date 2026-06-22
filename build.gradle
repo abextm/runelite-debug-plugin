@@ -31,7 +31,6 @@ dependencies {
 }
 
 group = 'abex.os.debug'
-version = file("version").text.trim()
 
 tasks.withType(JavaCompile) {
 	options.encoding = 'UTF-8'
